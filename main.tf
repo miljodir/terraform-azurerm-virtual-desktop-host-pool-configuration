@@ -1,8 +1,8 @@
 locals {
   pool_name  = "${var.subscription_name}-${var.name}"
   short_name = replace("${var.subscription_name}${var.name}", "-", "")
-  create_desktop = var.group_type == "Desktop" || var.group_type == "Both" ? 1 : 0
-  create_app     = var.group_type == "RemoteApp" || var.group_type == "Both" ? 1 : 0
+  create_desktop = var.create_app_group && (var.group_type == "Desktop" || var.group_type == "Both") ? 1 : 0
+  create_app     = var.create_app_group && (var.group_type == "RemoteApp" || var.group_type == "Both") ? 1 : 0
 }
 
 data "azurerm_client_config" "current" {}
