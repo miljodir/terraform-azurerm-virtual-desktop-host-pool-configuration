@@ -173,6 +173,8 @@ variable "entra_id_host_group_prefix" {
   description = "Prefix for the host group name in Entra ID"
 }
 
+######### Hostpool Scaling Variables #########
+
 variable "enable_scaling" {
   type        = bool
   default     = true
@@ -249,4 +251,89 @@ variable "scaling_schedules" {
       off_peak_start_time                  = "12:45"
     }
   }
+}
+
+
+######### Application Groups Variables #########
+
+variable "create_app_group" {
+  type        = bool
+  default     = true
+  description = "Whether to create an application group for the host pool"
+}
+
+variable "group_type" {
+  type        = string
+  default     = "Desktop"
+  description = "What types of application groups to create. Can create dektop, remote app or both"
+  validation {
+    condition     = var.group_type == "Desktop" || var.group_type == "RemoteApp" || var.group_type == "Both"
+    error_message = "variable \"type\" allowed values are \"Desktop\", \"RemoteApp\" or \"Both\""
+  }
+}
+
+variable "desktop_application_group_name" {
+  type        = string
+  default     = "desktop"
+  description = "Name of the desktop application group"
+}
+
+variable "desktop_group_friendly_name" {
+  type        = string
+  default     = null
+  description = "Optional friendly name for the desktop application group"
+}
+
+variable "desktop_group_description" {
+  type        = string
+  default     = null
+  description = "Optional description for the desktop application group"
+}
+
+variable "app_application_group_name" {
+  type        = string
+  default     = "apps"
+  description = "Name of the remote application group"
+}
+
+variable "app_group_friendly_name" {
+  type        = string
+  default     = null
+  description = "Optional friendly name for the remote application group"
+}
+
+variable "app_group_description" {
+  type        = string
+  default     = null
+  description = "Optional description for the remote application group"
+}
+
+variable "desktop_users" {
+  type        = list(string)
+  default     = []
+  description = "List of AAD users to assign to the desktop application group"
+}
+
+variable "desktop_groups" {
+  type        = list(string)
+  default     = []
+  description = "List of AAD groups to assign to the desktop application group"
+}
+
+variable "app_users" {
+  type        = list(string)
+  default     = []
+  description = "List of AAD users to assign to the remote application group"
+}
+
+variable "app_groups" {
+  type        = list(string)
+  default     = []
+  description = "List of AAD groups to assign to the remote application group"
+}
+
+variable "applications" {
+  type        = map(map(string))
+  default     = {}
+  description = "Map of applications to assign to the remote application group. Key is the application name, value is a map of properties. See https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/virtual_desktop_application for more information"
 }

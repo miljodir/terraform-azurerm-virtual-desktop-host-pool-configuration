@@ -24,3 +24,19 @@ resource "azapi_resource" "avd_host_pool" {
     }
   }
 }
+
+resource "azurerm_role_assignment" "pool_network_contributor" {
+  count                = var.assign_vnet_permission ? 1 : 0
+  scope                = join("", slice(split("/subnets", var.subnet_id), 0, 1)) # extract vnet id from subnet id
+  role_definition_name = "Network Contributor"
+  principal_id         = azapi_resource.avd_host_pool.identity[0].principal_id
+  principal_type       = "ServicePrincipal"
+}
+
+resource "azurerm_role_assignment" "pool_compute_contributor" {
+  count                = var.assign_compute_permission ? 1 : 0
+  scope                = azurerm_resource_group.main.id
+  role_definition_name = "Desktop Virtualization Virtual Machine Contributor"
+  principal_id         = azapi_resource.avd_host_pool.identity[0].principal_id
+  principal_type       = "ServicePrincipal"
+}
