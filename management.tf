@@ -21,4 +21,6 @@ resource "azapi_resource" "avd_host_management" {
       }
     }
   }
+
+  depends_on = [ azapi_resource.avd_host_config ]
 }
