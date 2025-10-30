@@ -39,4 +39,9 @@ resource "azapi_resource" "avd_host_config" {
       vmSizeId     = var.hostconfig_vm_size
     }
   }
+
+  depends_on = [
+    azurerm_role_assignment.pool_compute_contributor,
+    azurerm_role_assignment.avd_network_contributor
+  ]
 }
