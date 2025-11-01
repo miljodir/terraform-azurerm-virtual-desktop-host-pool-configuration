@@ -37,6 +37,18 @@ variable "hostconfig_vm_size" {
   description = "The size of the virtual machines in the host pool."
 }
 
+variable "hostconfig_image_publisher" {
+  type        = string
+  default     = "MicrosoftWindowsDesktop"
+  description = "The publisher of the image to use for the virtual machines in the host pool."
+}
+
+variable "hostconfig_image_publisher_location" {
+  type        = string
+  default     = "NorwayEast"
+  description = "The location of the image publisher to use for the virtual machines in the host pool. NOTE: Must be in CamelCase"
+}
+
 variable "hostconfig_image_offer" {
   type        = string
   default     = "windows-11"
@@ -45,13 +57,13 @@ variable "hostconfig_image_offer" {
 
 variable "hostconfig_image_sku" {
   type        = string
-  default     = "win11-25h2-avd"
+  default     = "avd-latest"
   description = "The SKU of the image to use for the virtual machines in the host pool."
 }
 
 variable "hostconfig_image_version" {
   type        = string
-  default     = "26200.6584.250915"
+  default     = "latest"
   description = "The version of the image to use for the virtual machines in the host pool."
 }
 

@@ -21,10 +21,10 @@ resource "azapi_resource" "avd_host_config" {
       imageInfo = {
         type = "Marketplace"
         marketplaceInfo = {
-          publisher    = "MicrosoftWindowsDesktop"
+          publisher    = var.hostconfig_image_publisher
           offer        = var.hostconfig_image_offer
-          sku          = var.hostconfig_image_sku
-          exactVersion = var.hostconfig_image_version
+          sku          = local.use_avd_sku
+          exactVersion = local.use_avd_sku_version
         }
       }
       networkInfo = {
