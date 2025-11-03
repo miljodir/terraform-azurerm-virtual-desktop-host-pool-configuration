@@ -165,6 +165,7 @@ variable "custom_rdp_properties" {
 variable "maximum_sessions_allowed" {
   type        = number
   description = "The maximum number of sessions allowed on a host in a host pool. This property is only applicable for session-based desktops."
+  default     = 6
 }
 
 variable "load_balancer_type" {
