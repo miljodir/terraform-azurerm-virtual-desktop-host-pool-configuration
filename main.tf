@@ -29,7 +29,7 @@ resource "azuread_group" "avd_host_group" {
 
 # This might be removed in the future is Host Configuration can rely on managed identity only
 resource "azurerm_role_assignment" "avd_network_contributor" {
-  count                = var.assign_vnet_permission ? 1 : 0
+  count                = var.assign_avd_vnet_permission ? 1 : 0
   scope                = join("", slice(split("/subnets", var.subnet_id), 0, 1)) # extract vnet id from subnet id
   role_definition_name = "Network Contributor"
   principal_id         = "7b438d0e-4915-4fe9-b343-6837baf39748" #Azure Virtual Desktop app

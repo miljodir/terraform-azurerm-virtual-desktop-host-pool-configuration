@@ -128,6 +128,12 @@ variable "kv_password_secret_id" {
 
 variable "assign_vnet_permission" {
   type        = bool
+  description = "If true, the module will assign the 'Network Contributor' role to the host pool managed identity for the vnet."
+  default     = true
+}
+
+variable "assign_avd_vnet_permission" {
+  type        = bool
   description = "If true, the module will assign the 'Network Contributor' role to the AVD service principal for the vnet."
   default     = true
 }
