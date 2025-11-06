@@ -3,8 +3,18 @@ variable "name" {
   type        = string
   description = "shortname og the hostpool. eg. aksmgt, sqlmgt"
   validation {
-    condition     = length(var.name) <= 7
-    error_message = "The name can be a maximum of 7 characters"
+    condition     = length(var.name) <= 6
+    error_message = "The name can be a maximum of 6 characters"
+  }
+}
+
+variable "vm_name_prefix" {
+  type        = string
+  description = "If you don't want a dynamically generated name prefix, specify it here."
+  default     = ""
+  validation {
+    condition     = length(var.vm_name_prefix) <= 10
+    error_message = "The name can be a maximum of 10 characters"
   }
 }
 
