@@ -35,7 +35,7 @@ resource "azapi_resource" "avd_host_config" {
         passwordKeyVaultSecretUri = var.kv_password_secret_id != null ? var.kv_password_secret_id : azurerm_key_vault_secret.host_pool_admin_password[0].id
       }
       vmLocation   = var.location
-      vmNamePrefix = local.short_name
+      vmNamePrefix = var.vm_name_prefix != "" ? var.vm_name_prefix : local.short_name
       vmSizeId     = var.hostconfig_vm_size
     }
   }
