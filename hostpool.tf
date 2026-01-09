@@ -40,3 +40,27 @@ resource "azurerm_role_assignment" "pool_compute_contributor" {
   principal_id         = azapi_resource.avd_host_pool.identity[0].principal_id
   principal_type       = "ServicePrincipal"
 }
+
+resource "azurerm_monitor_data_collection_rule" "avd_insights" {
+  count               = var.create_data_collection_rule ? 1 : 0
+  location            = var.hostpool_location
+  name                = "microsoft-avdi-${var.hostpool_location}-${local.pool_name}"
+  resource_group_name = azurerm_resource_group.main.name
+  
+  data_flow {
+    destinations = [
+        "CentralLogAnalyticsWorkspace",
+      ]
+    streams      = [
+        "Microsoft-Perf",
+        "Microsoft-Event",
+      ]
+  }
+
+  destinations {
+      log_analytics {
+        name                  = "CentralLogAnalyticsWorkspace"
+        workspace_resource_id = var.log_analytics_workspace_id
+      }
+    }
+  }

@@ -202,6 +202,18 @@ variable "entra_id_host_group_prefix" {
   description = "Prefix for the host group name in Entra ID"
 }
 
+variable "create_data_collection_rule" {
+  type        = bool
+  default     = true
+  description = "Whether to create a data collection rule for the host pool to send diagnostics to a Log Analytics workspace"
+}
+
+variable "log_analytics_workspace_id" {
+  type        = string
+  description = "The ID of the Log Analytics workspace to send diagnostics to"
+  default     = null
+}
+
 ######### Hostpool Scaling Variables #########
 
 variable "enable_scaling" {
