@@ -45,16 +45,17 @@ resource "azurerm_monitor_data_collection_rule" "avd_insights" {
   count               = var.create_data_collection_rule ? 1 : 0
   location            = var.hostpool_location
   name                = "microsoft-avdi-${var.hostpool_location}-${local.pool_name}"
-  resource_group_name = azurerm_resource_group.main.id
+  resource_group_name = azurerm_resource_group.main.name
+  
   data_flow {
-      destinations = [
-          "CentralLogAnalyticsWorkspace",
-        ]
-      streams      = [
-          "Microsoft-Perf",
-          "Microsoft-Event",
-        ]
-    }
+    destinations = [
+        "CentralLogAnalyticsWorkspace",
+      ]
+    streams      = [
+        "Microsoft-Perf",
+        "Microsoft-Event",
+      ]
+  }
 
   destinations {
       log_analytics {
