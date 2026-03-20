@@ -277,7 +277,7 @@ variable "scaling_schedules" {
       off_peak_start_time                  = "17:30"
     }
     "Sunday-patch" = {
-      scaling_timezone = "UTC" # Match time zone in Github Actions Update cron as it always uses UTC
+      scaling_timezone                     = "UTC" # Match time zone in Github Actions Update cron as it always uses UTC
       days_of_week                         = ["Sunday"]
       ramp_up_start_time                   = "10:00"
       ramp_up_minimum_hosts_percent        = 100
