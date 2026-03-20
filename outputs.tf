@@ -19,9 +19,9 @@ output "key_vault_id" {
 }
 
 output "desktop_group" {
-  value = local.create_desktop ? azuread_group.desktop_users[0] : null
+  value = local.create_desktop == 1 ? azuread_group.desktop_users[0] : null
 }
 
 output "app_group" {
-  value = local.create_app ? azuread_group.app_users[0] : null
+  value = local.create_app == 1 ? azuread_group.app_users[0] : null
 }
