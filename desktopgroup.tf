@@ -7,6 +7,8 @@ resource "azurerm_virtual_desktop_application_group" "desktop" {
   name                = lower("${azapi_resource.avd_host_pool.name}-${var.desktop_application_group_name}")
   friendly_name       = var.desktop_group_friendly_name == null ? lower("${azapi_resource.avd_host_pool.name}-${var.desktop_application_group_name}") : var.desktop_group_friendly_name
   description         = var.desktop_group_description == null ? lower("${azapi_resource.avd_host_pool.name}-${var.desktop_application_group_name}") : var.desktop_group_description
+
+  default_desktop_display_name = var.default_desktop_display_name
 }
 
 data "azuread_users" "desktop_users" {
