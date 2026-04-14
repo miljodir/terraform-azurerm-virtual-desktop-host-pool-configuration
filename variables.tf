@@ -378,3 +378,9 @@ variable "applications" {
   default     = {}
   description = "Map of applications to assign to the remote application group. Key is the application name, value is a map of properties. See https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/virtual_desktop_application for more information"
 }
+
+variable "default_desktop_display_name" {
+  type        = string
+  default     = null
+  description = "Optional display name for the default desktop"
+}
