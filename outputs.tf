@@ -67,8 +67,6 @@ locals {
   remoteapps = local.create_app == 1 ? {
     for app in data.azapi_resource_list.apps[0].output.value :
     app.name => {
-      id        = app.id
-      object_id = app.object_id
       uri       = "ms-avd:connect?resourceid=${urlencode(app.object_id)}&username=${local.avd_username}"
     }
   } : {}
