@@ -26,12 +26,13 @@ output "app_group" {
   value = local.create_app == 1 ? azuread_group.app_users[0] : null
 }
 
+
 locals {
   avd_username = "MYUSERNAME@miljodir.no"
 }
 
 data "azapi_resource" "desktop" {
-  #count = local.create_desktop == 1 ? 1 : 0
+  count = local.create_desktop == 1 ? 1 : 0
 
   type      = "Microsoft.DesktopVirtualization/applicationGroups/desktops@2024-04-03"
   name      = "SessionDesktop"
@@ -39,7 +40,7 @@ data "azapi_resource" "desktop" {
 }
 
 data "azapi_resource_list" "apps" {
-  #count = local.create_app == 1 ? 1 : 0
+  count = local.create_app == 1 ? 1 : 0
 
   type      = "Microsoft.DesktopVirtualization/applicationGroups/applications@2024-04-03"
   parent_id = azurerm_virtual_desktop_application_group.app[0].id
@@ -48,12 +49,12 @@ data "azapi_resource_list" "apps" {
 locals {
   desktop_connection_uri = local.create_desktop == 1 ? (
     "ms-avd:connect?resourceid=${
-      urlencode(data.azapi_resource.desktop.output.id)
+      urlencode(data.azapi_resource.desktop[0].output.id)
     }&username=${local.avd_username}"
   ) : null
 
   remoteapps = local.create_app == 1 ? {
-    for app in data.azapi_resource_list.apps.output.value :
+    for app in data.azapi_resource_list.apps[0].output.value :
     app.name => {
       id  = app.id
       uri = "ms-avd:connect?resourceid=${urlencode(app.id)}&username=${local.avd_username}"
@@ -69,4 +70,9 @@ output "desktop_connection_uri" {
 output "remoteapps" {
   description = "Workarounds in order to connect directly to the RemoteApps. See https://learn.microsoft.com/en-us/azure/virtual-desktop/preferred-application-group-type#expected-behavior for details"
   value       = local.remoteapps
+}
+
+output "nuthin" {
+  value = "nuthin"
+  
 }
