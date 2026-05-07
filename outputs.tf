@@ -37,6 +37,11 @@ data "azapi_resource" "desktop" {
   type      = "Microsoft.DesktopVirtualization/applicationGroups/desktops@2024-04-03"
   name      = "SessionDesktop"
   parent_id = azurerm_virtual_desktop_application_group.desktop[0].id
+
+  response_export_values = {
+    arm_id    = "id"
+    object_id = "properties.objectId"
+  }
 }
 
 data "azapi_resource_list" "apps" {
@@ -44,30 +49,42 @@ data "azapi_resource_list" "apps" {
 
   type      = "Microsoft.DesktopVirtualization/applicationGroups/applications@2024-04-03"
   parent_id = azurerm_virtual_desktop_application_group.app[0].id
+
+  response_export_values = {
+    value = "value[].{name:name,id:id,object_id:properties.objectId}"
+  }
 }
 
 locals {
-  desktop_connection_uri = local.create_desktop == 1 ? (
+  desktop_object_id = local.create_desktop == 1 ? data.azapi_resource.desktop[0].output.object_id : null
+
+  desktop_connection_uri = local.desktop_object_id != null ? (
     "ms-avd:connect?resourceid=${
-      urlencode(data.azapi_resource.desktop[0].output.id)
+      urlencode(local.desktop_object_id)
     }&username=${local.avd_username}"
   ) : null
 
   remoteapps = local.create_app == 1 ? {
     for app in data.azapi_resource_list.apps[0].output.value :
     app.name => {
-      id  = app.id
-      uri = "ms-avd:connect?resourceid=${urlencode(app.id)}&username=${local.avd_username}"
+      id        = app.id
+      object_id = app.object_id
+      uri       = "ms-avd:connect?resourceid=${urlencode(app.object_id)}&username=${local.avd_username}"
     }
   } : {}
 }
 
+output "desktop_object_id" {
+  description = "AVD desktop objectId used by ms-avd:connect deep links."
+  value       = local.desktop_object_id
+}
+
 output "desktop_connection_uri" {
-  description = "Workarounds in order to connect directly to the Desktop. See https://learn.microsoft.com/en-us/azure/virtual-desktop/preferred-application-group-type#expected-behavior for details"
+  description = "Workaround to connect directly to the Desktop using its AVD objectId. See https://learn.microsoft.com/en-us/azure/virtual-desktop/preferred-application-group-type#expected-behavior for details"
   value       = local.desktop_connection_uri
 }
 
 output "remoteapps" {
-  description = "Workarounds in order to connect directly to the RemoteApps. See https://learn.microsoft.com/en-us/azure/virtual-desktop/preferred-application-group-type#expected-behavior for details"
+  description = "Workaround to connect directly to the RemoteApps using their AVD objectIds. See https://learn.microsoft.com/en-us/azure/virtual-desktop/preferred-application-group-type#expected-behavior for details"
   value       = local.remoteapps
 }
