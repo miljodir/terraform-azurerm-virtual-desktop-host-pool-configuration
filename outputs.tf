@@ -70,11 +70,6 @@ locals {
   } : {}
 }
 
-output "desktop_object_ids" {
-  description = "AVD desktop objectIds keyed by desktop name."
-  value       = local.desktop_object_ids
-}
-
 output "desktop_connection_uri" {
   description = "Workaround to connect directly to the Desktops using their AVD objectIds, keyed by desktop name. See https://learn.microsoft.com/en-us/azure/virtual-desktop/preferred-application-group-type#expected-behavior for details"
   value       = local.desktop_connection_uri
