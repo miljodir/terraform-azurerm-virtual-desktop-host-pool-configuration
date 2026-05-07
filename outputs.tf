@@ -71,8 +71,3 @@ output "remoteapps" {
   description = "Workarounds in order to connect directly to the RemoteApps. See https://learn.microsoft.com/en-us/azure/virtual-desktop/preferred-application-group-type#expected-behavior for details"
   value       = local.remoteapps
 }
-
-output "nuthin" {
-  value = "nuthin"
-  
-}
