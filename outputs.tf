@@ -31,16 +31,14 @@ locals {
   avd_username = "MYUSERNAME@miljodir.no"
 }
 
-data "azapi_resource" "desktop" {
+data "azapi_resource_list" "desktops" {
   count = local.create_desktop == 1 ? 1 : 0
 
   type      = "Microsoft.DesktopVirtualization/applicationGroups/desktops@2024-04-03"
-  name      = "SessionDesktop"
   parent_id = azurerm_virtual_desktop_application_group.desktop[0].id
 
   response_export_values = {
-    arm_id    = "id"
-    object_id = "properties.objectId"
+    value = "value[].{name:name,object_id:properties.objectId}"
   }
 }
 
@@ -51,34 +49,34 @@ data "azapi_resource_list" "apps" {
   parent_id = azurerm_virtual_desktop_application_group.app[0].id
 
   response_export_values = {
-    value = "value[].{name:name,id:id,object_id:properties.objectId}"
+    value = "value[].{name:name,object_id:properties.objectId}"
   }
 }
 
 locals {
-  desktop_object_id = local.create_desktop == 1 ? data.azapi_resource.desktop[0].output.object_id : null
+  desktop_object_ids = local.create_desktop == 1 ? {
+    for desktop in data.azapi_resource_list.desktops[0].output.value :
+    desktop.name => desktop.object_id
+  } : {}
 
-  desktop_connection_uri = local.desktop_object_id != null ? (
-    "ms-avd:connect?resourceid=${
-      urlencode(local.desktop_object_id)
-    }&username=${local.avd_username}"
-  ) : null
+  desktop_connection_uri = {
+    for desktop_name, object_id in local.desktop_object_ids :
+    desktop_name => "ms-avd:connect?resourceid=${urlencode(object_id)}&username=${local.avd_username}"
+  }
 
   remoteapps = local.create_app == 1 ? {
     for app in data.azapi_resource_list.apps[0].output.value :
-    app.name => {
-      uri       = "ms-avd:connect?resourceid=${urlencode(app.object_id)}&username=${local.avd_username}"
-    }
+    app.name => "ms-avd:connect?resourceid=${urlencode(app.object_id)}&username=${local.avd_username}"
   } : {}
 }
 
-output "desktop_object_id" {
-  description = "AVD desktop objectId used by ms-avd:connect deep links."
-  value       = local.desktop_object_id
+output "desktop_object_ids" {
+  description = "AVD desktop objectIds keyed by desktop name."
+  value       = local.desktop_object_ids
 }
 
 output "desktop_connection_uri" {
-  description = "Workaround to connect directly to the Desktop using its AVD objectId. See https://learn.microsoft.com/en-us/azure/virtual-desktop/preferred-application-group-type#expected-behavior for details"
+  description = "Workaround to connect directly to the Desktops using their AVD objectIds, keyed by desktop name. See https://learn.microsoft.com/en-us/azure/virtual-desktop/preferred-application-group-type#expected-behavior for details"
   value       = local.desktop_connection_uri
 }
 
