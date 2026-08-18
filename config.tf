@@ -30,6 +30,11 @@ resource "azapi_resource" "avd_host_config" {
       networkInfo = {
         subnetId = var.subnet_id
       }
+      securityInfo = {
+        type              = var.hostconfig_security_type
+        secureBootEnabled = var.hostconfig_secure_boot_enabled
+        vTpmEnabled       = var.hostconfig_vtpm_enabled
+      }
       vmAdminCredentials = {
         usernameKeyVaultSecretUri = var.kv_username_secret_id != null ? var.kv_username_secret_id : azurerm_key_vault_secret.host_pool_admin_username[0].id
         passwordKeyVaultSecretUri = var.kv_password_secret_id != null ? var.kv_password_secret_id : azurerm_key_vault_secret.host_pool_admin_password[0].id
