@@ -6,3 +6,5 @@
 Creates a virtual desktop host pool, workspace and app group.
 This module utilizes Azure Virtual Desktop Session host management policy to automatically create sessions hosts, instead of creating virtual machines manually.
 [Note: This feature is still in preview from Microsoft.](https://learn.microsoft.com/en-us/azure/virtual-desktop/host-pool-management-approaches#session-host-configuration-management-approach)
+
+Session hosts use [Trusted Launch](https://learn.microsoft.com/en-us/azure/virtual-machines/trusted-launch) with Secure Boot and vTPM by default. Set the `hostconfig_security_*` inputs to override this when a compatible VM size or image isn't available.

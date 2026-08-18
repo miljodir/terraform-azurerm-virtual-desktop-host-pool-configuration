@@ -41,6 +41,29 @@ variable "hostconfig_disk_type" {
   description = "The type of disk to use for the virtual machines in the host pool."
 }
 
+variable "hostconfig_security_type" {
+  type        = string
+  default     = "TrustedLaunch"
+  description = "The security type for the virtual machines. TrustedLaunch enables Secure Boot and vTPM by default."
+
+  validation {
+    condition     = contains(["ConfidentialVM", "Standard", "TrustedLaunch"], var.hostconfig_security_type)
+    error_message = "hostconfig_security_type must be ConfidentialVM, Standard, or TrustedLaunch."
+  }
+}
+
+variable "hostconfig_secure_boot_enabled" {
+  type        = bool
+  default     = true
+  description = "Whether Secure Boot is enabled for the virtual machines."
+}
+
+variable "hostconfig_vtpm_enabled" {
+  type        = bool
+  default     = true
+  description = "Whether virtual TPM is enabled for the virtual machines."
+}
+
 variable "hostconfig_vm_size" {
   type        = string
   default     = "Standard_D4as_v6"
