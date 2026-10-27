@@ -19,7 +19,7 @@ on:
 jobs:
   pr:
     if: github.event_name != 'repository_dispatch'
-    uses: miljodir/workflow-templates/.github/workflows/generate-release-metadata.yaml@generate-release-metadata/1.2.9
+    uses: miljodir/workflow-templates/.github/workflows/generate-release-metadata.yaml@generate-release-metadata/v1
     permissions:
       contents: write
       pull-requests: write
@@ -31,7 +31,7 @@ jobs:
 
   tag:
     if: github.event_name == 'repository_dispatch' && github.event.action == 'create_release'
-    uses: miljodir/workflow-templates/.github/workflows/create-release.yaml@create-release/1.1.4
+    uses: miljodir/workflow-templates/.github/workflows/create-release.yaml@create-release/v1
     permissions:
       contents: write
     with:
@@ -39,6 +39,6 @@ jobs:
 
   wiki:
     if: github.event_name == 'repository_dispatch' && github.event.action == 'update_wiki'
-    uses: miljodir/workflow-templates/.github/workflows/update-wiki.yaml@update-wiki/1.0.18
+    uses: miljodir/workflow-templates/.github/workflows/update-wiki.yaml@update-wiki/v1
     permissions:
       contents: write

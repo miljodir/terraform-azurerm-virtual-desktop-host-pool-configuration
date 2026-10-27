@@ -87,4 +87,4 @@ Existing object outputs remain available: `resource_group.id`/`.name`, `hostpool
 
 Pull requests run `terraform fmt -check -diff`, `terraform init -backend=false -input=false`, and `terraform validate -no-color` in GitHub Actions without Azure credentials or a deployment. Do not run plan or apply as part of module validation.
 
-The release workflow calls the latest verified tagged reusable workflows: `generate-release-metadata/1.2.9`, `create-release/1.1.4`, and `update-wiki/1.0.18`. These already use current action majors including checkout v7; action implementations belong to `miljodir/workflow-templates`, not this module. The validation workflow pins verified checkout v7.0.1 and setup-terraform v4.0.1.
+The release workflow uses the verified current major aliases: `generate-release-metadata/v1`, `create-release/v1`, and `update-wiki/v1`. These already use current action majors including checkout v7; action implementations belong to `miljodir/workflow-templates`, not this module. The validation workflow uses checkout v7 and setup-terraform v4. All GitHub Actions references use major aliases.
