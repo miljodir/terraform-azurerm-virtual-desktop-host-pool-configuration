@@ -24,8 +24,8 @@ locals {
     replace(file(local.fslogix_bootstrap_source_path), "__PROFILE_PATH__", coalesce(local.fslogix_profile_path, "__PROFILE_PATH__")),
     "__HOST_PREFIX_BASE64__", base64encode(local.vm_name_prefix)
   )
-  fslogix_bootstrap_version     = sha256(local.fslogix_bootstrap_unversioned)
-  fslogix_bootstrap_content     = replace(local.fslogix_bootstrap_unversioned, "__CONTENT_VERSION__", local.fslogix_bootstrap_version)
+  fslogix_bootstrap_version = sha256(local.fslogix_bootstrap_unversioned)
+  fslogix_bootstrap_content = replace(local.fslogix_bootstrap_unversioned, "__CONTENT_VERSION__", local.fslogix_bootstrap_version)
 }
 
 # Deliberately independent of the host pool and its replaceable resource group.
