@@ -1,14 +1,14 @@
 output "fslogix" {
   description = "Persistent profile storage contract, or null when disabled. Resource IDs use ARM scopes; profile_path is the SMB UNC."
   value = local.fslogix_enabled ? {
-    resource_group_name  = azurerm_storage_account.fslogix["profiles"].resource_group_name
-    storage_account_id   = azurerm_storage_account.fslogix["profiles"].id
-    storage_account_name = azurerm_storage_account.fslogix["profiles"].name
+    resource_group_name  = module.fslogix["profiles"].storage_account.resource_group_name
+    storage_account_id   = module.fslogix["profiles"].storage_account.id
+    storage_account_name = module.fslogix["profiles"].storage_account.name
     share_id             = azurerm_storage_share.fslogix["profiles"].id
     share_name           = azurerm_storage_share.fslogix["profiles"].name
     profile_path         = local.fslogix_profile_path
-    private_endpoint_id  = azurerm_private_endpoint.fslogix["profiles"].id
-    private_ip_address   = azurerm_private_endpoint.fslogix["profiles"].private_service_connection[0].private_ip_address
+    private_endpoint_id  = module.fslogix["profiles"].private_endpoints["file"].id
+    private_ip_address   = module.fslogix["profiles"].private_endpoints["file"].private_service_connection[0].private_ip_address
   } : null
 }
 

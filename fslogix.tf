@@ -41,88 +41,78 @@ resource "azurerm_resource_group" "fslogix" {
   }
 }
 
-resource "azurerm_storage_account" "fslogix" {
+module "fslogix" {
   for_each = local.fslogix
 
-  name                = each.value.storage_account_name
-  location            = coalesce(each.value.location, var.location)
-  resource_group_name = each.value.create_resource_group ? azurerm_resource_group.fslogix[each.key].name : each.value.resource_group_name
+  source  = "miljodir/storage-account/azurerm"
+  version = "~> 1.0"
 
-  account_kind                    = "FileStorage"
-  account_tier                    = "Premium"
-  account_replication_type        = each.value.replication_type
-  allowed_copy_scope              = "AAD"
-  local_user_enabled              = false
-  shared_access_key_enabled       = false
-  public_network_access_enabled   = false
-  allow_nested_items_to_be_public = false
-  min_tls_version                 = "TLS1_2"
+  storage_account_name = each.value.storage_account_name
+  location             = coalesce(each.value.location, var.location)
+  resource_group_name  = each.value.create_resource_group ? azurerm_resource_group.fslogix[each.key].name : each.value.resource_group_name
 
-  network_rules {
-    default_action             = "Deny"
-    bypass                     = ["None"]
-    ip_rules                   = []
-    virtual_network_subnet_ids = []
+  account_kind                  = "FileStorage"
+  sku_name                      = "Premium_${each.value.replication_type}"
+  allowed_copy_scope            = "AAD"
+  sftp_enabled                  = false
+  is_hns_enabled                = false
+  shared_access_key_enabled     = false
+  public_network_access_enabled = false
+  allow_known_public_ips        = false
+
+  subnet_id            = each.value.private_endpoint_subnet_id
+  private_endpoints    = ["file"]
+  private_dns_zone_ids = { file = [each.value.private_dns_zone_id] }
+
+  network_rules = {
+    default_action = "Deny"
+    bypass         = ["None"]
+    ip_rules       = []
+    subnet_ids     = []
   }
 
-  azure_files_authentication {
+  azure_files_authentication = {
     directory_type = "AADKERB"
   }
 
-  share_properties {
-    retention_policy {
+  share_properties = {
+    retention_policy = {
       days = 30
     }
-    smb {
+    smb = {
       versions                        = ["SMB3.1.1"]
       authentication_types            = ["Kerberos"]
       kerberos_ticket_encryption_type = ["AES-256"]
       channel_encryption_type         = ["AES-256-GCM"]
     }
   }
+}
 
-  lifecycle {
-    prevent_destroy = true
-    ignore_changes  = [tags]
+moved {
+  from = azurerm_storage_account.fslogix["profiles"]
+  to   = module.fslogix["profiles"].azurerm_storage_account.account
+}
 
-    precondition {
-      condition     = (each.value.create_resource_group ? coalesce(each.value.resource_group_name, "${local.pool_name}-data") : each.value.resource_group_name) != local.pool_name
-      error_message = "FSLogix data must not be stored in the replaceable host resource group."
-    }
-  }
+moved {
+  from = azurerm_private_endpoint.fslogix["profiles"]
+  to   = module.fslogix["profiles"].azurerm_private_endpoint.pe["file"]
 }
 
 resource "azurerm_storage_share" "fslogix" {
   for_each = local.fslogix
 
   name               = each.value.share_name
-  storage_account_id = azurerm_storage_account.fslogix[each.key].id
+  storage_account_id = module.fslogix[each.key].storage_account.id
   quota              = each.value.quota_gib
   enabled_protocol   = "SMB"
 
   lifecycle {
     prevent_destroy = true
-  }
-}
 
-resource "azurerm_private_endpoint" "fslogix" {
-  for_each = local.fslogix
-
-  name                = "${local.pool_name}-profiles"
-  location            = azurerm_storage_account.fslogix[each.key].location
-  resource_group_name = azurerm_storage_account.fslogix[each.key].resource_group_name
-  subnet_id           = each.value.private_endpoint_subnet_id
-
-  private_service_connection {
-    name                           = "profiles"
-    private_connection_resource_id = azurerm_storage_account.fslogix[each.key].id
-    subresource_names              = ["file"]
-    is_manual_connection           = false
-  }
-
-  private_dns_zone_group {
-    name                 = "file"
-    private_dns_zone_ids = [each.value.private_dns_zone_id]
+    precondition {
+      condition     = (each.value.create_resource_group ? coalesce(each.value.resource_group_name, "${local.pool_name}-data") : each.value.resource_group_name) != local.pool_name
+      error_message = "FSLogix data must not be stored in the replaceable host resource group."
+    }
   }
 }
 
@@ -140,7 +130,7 @@ resource "azurerm_role_assignment" "fslogix_users" {
 resource "azurerm_role_assignment" "fslogix_administrators" {
   for_each = local.fslogix_admin_assignments
 
-  scope                = each.value.role == "smb" ? azurerm_storage_share.fslogix["profiles"].id : azurerm_storage_account.fslogix["profiles"].id
+  scope                = each.value.role == "smb" ? azurerm_storage_share.fslogix["profiles"].id : module.fslogix["profiles"].storage_account.id
   role_definition_name = each.value.name
   principal_id         = each.value.id
   principal_type       = "Group"

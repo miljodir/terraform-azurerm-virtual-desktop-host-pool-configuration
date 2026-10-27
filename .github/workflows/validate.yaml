@@ -18,39 +18,59 @@ jobs:
       - uses: actions/checkout@v7
       - uses: hashicorp/setup-terraform@v4
         with:
-          terraform_version: "~1.5.0"
+          terraform_version: "~1.7.0"
           terraform_wrapper: false
       - run: terraform fmt -check -diff
-      - run: terraform init -backend=false -input=false
-      - run: terraform validate -no-color
       - name: Check FSLogix storage guardrail source contract
         shell: pwsh
         run: |
           $source = Get-Content fslogix.tf -Raw
-          $account = [regex]::Match($source, '(?ms)^resource "azurerm_storage_account" "fslogix" \{.*?(?=^resource |\z)').Value
-          $network = [regex]::Match($account, '(?ms)^  network_rules \{\r?\n(.*?)^  \}').Groups[1].Value
+          $account = [regex]::Match($source, '(?ms)^module "fslogix" \{.*?(?=^moved |\z)').Value
+          $network = [regex]::Match($account, '(?ms)^  network_rules = \{\r?\n(.*?)^  \}').Groups[1].Value
           $checks = @{
+            'Shared storage module' = (
+              $account -match '(?m)^  source\s*=\s*"miljodir/storage-account/azurerm"\s*$' -and
+              $account -match '(?m)^  version\s*=\s*"~> 1\.0"\s*$' -and
+              $source -notmatch '(?m)^resource "azurerm_(storage_account|private_endpoint)" "fslogix"'
+            )
             'Deny-Storage-CopyScope' = $account -match '(?m)^  allowed_copy_scope\s*=\s*"AAD"\s*$'
-            'Deny-Storage-LocalUser' = $account -match '(?m)^  local_user_enabled\s*=\s*false\s*$'
+            'Deny-Storage-LocalUser inputs' = (
+              $account -match '(?m)^  sftp_enabled\s*=\s*false\s*$' -and
+              $account -match '(?m)^  is_hns_enabled\s*=\s*false\s*$'
+            )
             'Deny-Storage-NetworkAclsBypass' = $network -match '(?m)^\s*bypass\s*=\s*\["None"\]\s*$'
             '34c877ad-507e-4c82-993e-3452a6e0ad3c' = $network -match '(?m)^\s*default_action\s*=\s*"Deny"\s*$'
             '2a1a9cdf-e04d-429a-8416-3bfb72a1b26f' = (
               $network -match '(?m)^\s*default_action\s*=\s*"Deny"\s*$' -and
               $network -match '(?m)^\s*ip_rules\s*=\s*\[\s*\]\s*$'
             )
-            'No public subnet allow rules' = $network -match '(?m)^\s*virtual_network_subnet_ids\s*=\s*\[\s*\]\s*$'
+            'No public subnet allow rules' = $network -match '(?m)^\s*subnet_ids\s*=\s*\[\s*\]\s*$'
             'Public network disabled' = $account -match '(?m)^  public_network_access_enabled\s*=\s*false\s*$'
+            'No development public IP override' = $account -match '(?m)^  allow_known_public_ips\s*=\s*false\s*$'
             'Shared keys disabled' = $account -match '(?m)^  shared_access_key_enabled\s*=\s*false\s*$'
             'Premium FileStorage retained' = (
               $account -match '(?m)^  account_kind\s*=\s*"FileStorage"\s*$' -and
-              $account -match '(?m)^  account_tier\s*=\s*"Premium"\s*$'
+              $account -match '(?m)^  sku_name\s*=\s*"Premium_\$\{each\.value\.replication_type\}"\s*$'
             )
             'Entra Kerberos retained' = $account -match '(?m)^\s*directory_type\s*=\s*"AADKERB"\s*$'
-            'File private endpoint retained' = $source -match '(?m)^\s*subresource_names\s*=\s*\["file"\]\s*$'
+            'File private endpoint retained' = $account -match '(?m)^  private_endpoints\s*=\s*\["file"\]\s*$'
+            'Caller private endpoint subnet retained' = $account -match '(?m)^  subnet_id\s*=\s*each\.value\.private_endpoint_subnet_id\s*$'
+            'Caller private DNS zone retained' = $account -match '(?m)^  private_dns_zone_ids\s*=\s*\{ file = \[each\.value\.private_dns_zone_id\] \}\s*$'
+            'Share retention retained' = $account -match '(?s)retention_policy = \{\s*days = 30\s*\}'
+            'SMB hardening retained' = (
+              $account -match '(?m)^\s*versions\s*=\s*\["SMB3\.1\.1"\]\s*$' -and
+              $account -match '(?m)^\s*authentication_types\s*=\s*\["Kerberos"\]\s*$' -and
+              $account -match '(?m)^\s*kerberos_ticket_encryption_type\s*=\s*\["AES-256"\]\s*$' -and
+              $account -match '(?m)^\s*channel_encryption_type\s*=\s*\["AES-256-GCM"\]\s*$'
+            )
+            'Storage account state move' = $source -match '(?s)moved \{\s*from = azurerm_storage_account\.fslogix\["profiles"\]\s*to\s*=\s*module\.fslogix\["profiles"\]\.azurerm_storage_account\.account\s*\}'
+            'File endpoint state move' = $source -match '(?s)moved \{\s*from = azurerm_private_endpoint\.fslogix\["profiles"\]\s*to\s*=\s*module\.fslogix\["profiles"\]\.azurerm_private_endpoint\.pe\["file"\]\s*\}'
           }
           foreach ($check in $checks.GetEnumerator()) {
             if (-not $check.Value) { throw "FSLogix storage contract failed: $($check.Key)" }
           }
+      - run: terraform init -backend=false -input=false
+      - run: terraform validate -no-color
       - name: Check opt-in defaults and rendered contract without Azure
         shell: pwsh
         env:
