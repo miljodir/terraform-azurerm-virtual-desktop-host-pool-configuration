@@ -1,6 +1,7 @@
 locals {
   pool_name      = "${var.subscription_name}-${var.name}"
   short_name     = replace("${var.subscription_name}${var.name}", "-", "")
+  vm_name_prefix = var.vm_name_prefix != "" ? var.vm_name_prefix : local.short_name
   create_desktop = var.create_app_group && (var.group_type == "Desktop" || var.group_type == "Both") ? 1 : 0
   create_app     = var.create_app_group && (var.group_type == "RemoteApp" || var.group_type == "Both") ? 1 : 0
 }
@@ -23,7 +24,7 @@ resource "azuread_group" "avd_host_group" {
 
   dynamic_membership {
     enabled = true
-    rule    = "(device.displayName -startsWith \"${local.short_name}\") and (device.deviceOSType -eq \"Windows\")"
+    rule    = "(device.displayName -startsWith \"${local.vm_name_prefix}\") and (device.deviceOSType -eq \"Windows\")"
   }
 }
 

@@ -104,6 +104,103 @@ variable "hostconfig_instance_count" {
   type        = number
   default     = 1
   description = "The number of instances to create for the virtual machines in the host pool."
+
+  validation {
+    condition     = var.hostconfig_instance_count >= 1 && floor(var.hostconfig_instance_count) == var.hostconfig_instance_count
+    error_message = "hostconfig_instance_count must be a positive integer."
+  }
+}
+
+variable "hostconfig_provisioning_enabled" {
+  type        = bool
+  default     = true
+  nullable    = false
+  description = "Create session host configuration and management resources. Set false only for initial preparation before enabling provisioning; disabling later removes these resources."
+}
+
+variable "hostconfig_custom_configuration_script_url" {
+  type        = string
+  default     = null
+  description = "Publicly reachable HTTPS URL of a custom configuration PowerShell script. Use immutable, secret-free content. Null omits the property."
+
+  validation {
+    condition     = var.hostconfig_custom_configuration_script_url == null ? true : can(regex("^https://[^/?#[:space:]]+/", var.hostconfig_custom_configuration_script_url))
+    error_message = "hostconfig_custom_configuration_script_url must be null or an HTTPS URL with a host and path."
+  }
+}
+
+variable "hostconfig_set_drain_mode" {
+  type        = bool
+  default     = false
+  nullable    = false
+  description = "Place newly provisioned session hosts in drain mode until an operator verifies readiness and allows new sessions."
+}
+
+variable "hostconfig_delete_original_vm" {
+  type        = bool
+  default     = true
+  nullable    = false
+  description = "Delete original VMs during session host updates. Set false to retain deallocated originals; this does not protect resources from Terraform destroy."
+}
+
+variable "hostconfig_max_vms_removed" {
+  type        = number
+  default     = 2
+  nullable    = false
+  description = "Maximum number of session hosts unavailable concurrently during an update."
+
+  validation {
+    condition     = var.hostconfig_max_vms_removed >= 1 && floor(var.hostconfig_max_vms_removed) == var.hostconfig_max_vms_removed
+    error_message = "hostconfig_max_vms_removed must be a positive integer."
+  }
+}
+
+variable "hostconfig_failed_session_host_cleanup_policy" {
+  type        = string
+  default     = "KeepOne"
+  nullable    = false
+  description = "Cleanup policy for failed session host provisioning: KeepAll, KeepNone, or KeepOne."
+
+  validation {
+    condition     = contains(["KeepAll", "KeepNone", "KeepOne"], var.hostconfig_failed_session_host_cleanup_policy)
+    error_message = "hostconfig_failed_session_host_cleanup_policy must be KeepAll, KeepNone, or KeepOne."
+  }
+}
+
+variable "hostconfig_canary_policy" {
+  type        = string
+  default     = "Never"
+  nullable    = false
+  description = "Whether to provision a canary VM: Always, Auto, or Never."
+
+  validation {
+    condition     = contains(["Always", "Auto", "Never"], var.hostconfig_canary_policy)
+    error_message = "hostconfig_canary_policy must be Always, Auto, or Never."
+  }
+}
+
+variable "hostconfig_logoff_delay_minutes" {
+  type        = number
+  default     = 10
+  nullable    = false
+  description = "Grace period before signing users out during a session host update, from 0 to 60 minutes."
+
+  validation {
+    condition     = var.hostconfig_logoff_delay_minutes >= 0 && var.hostconfig_logoff_delay_minutes <= 60 && floor(var.hostconfig_logoff_delay_minutes) == var.hostconfig_logoff_delay_minutes
+    error_message = "hostconfig_logoff_delay_minutes must be an integer between 0 and 60."
+  }
+}
+
+variable "hostconfig_logoff_message" {
+  type        = string
+  default     = "AVD oppdateres, du blir logget av om 10 minutter"
+  nullable    = false
+  description = "Sign-out notification for session host updates, at most 260 characters."
+
+  validation {
+    condition     = length(var.hostconfig_logoff_message) <= 260
+    error_message = "hostconfig_logoff_message must be at most 260 characters."
+  }
 }
 
 variable "hostconfig_mdm_guid" {

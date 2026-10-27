@@ -11,7 +11,13 @@ output "hostpool" {
 }
 
 output "hostconfig" {
-  value = azapi_resource.avd_host_config
+  description = "Session host configuration resource, or null during initial preparation."
+  value       = var.hostconfig_provisioning_enabled ? azapi_resource.avd_host_config[0] : null
+}
+
+output "host_group" {
+  description = "Dynamic Entra device group for session hosts; use object_id and display_name for Intune assignments."
+  value       = azuread_group.avd_host_group
 }
 
 output "key_vault_id" {
