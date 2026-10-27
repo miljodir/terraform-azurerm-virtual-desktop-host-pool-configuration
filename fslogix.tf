@@ -51,10 +51,19 @@ resource "azurerm_storage_account" "fslogix" {
   account_kind                    = "FileStorage"
   account_tier                    = "Premium"
   account_replication_type        = each.value.replication_type
+  allowed_copy_scope              = "AAD"
+  local_user_enabled              = false
   shared_access_key_enabled       = false
   public_network_access_enabled   = false
   allow_nested_items_to_be_public = false
   min_tls_version                 = "TLS1_2"
+
+  network_rules {
+    default_action             = "Deny"
+    bypass                     = ["None"]
+    ip_rules                   = []
+    virtual_network_subnet_ids = []
+  }
 
   azure_files_authentication {
     directory_type = "AADKERB"

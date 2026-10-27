@@ -24,6 +24,34 @@ jobs:
       - run: terraform fmt -check -diff
       - run: terraform init -backend=false -input=false
       - run: terraform validate -no-color
+      - name: Check FSLogix storage guardrail source contract
+        shell: pwsh
+        run: |
+          $source = Get-Content fslogix.tf -Raw
+          $account = [regex]::Match($source, '(?ms)^resource "azurerm_storage_account" "fslogix" \{.*?(?=^resource |\z)').Value
+          $network = [regex]::Match($account, '(?ms)^  network_rules \{\r?\n(.*?)^  \}').Groups[1].Value
+          $checks = @{
+            'Deny-Storage-CopyScope' = $account -match '(?m)^  allowed_copy_scope\s*=\s*"AAD"\s*$'
+            'Deny-Storage-LocalUser' = $account -match '(?m)^  local_user_enabled\s*=\s*false\s*$'
+            'Deny-Storage-NetworkAclsBypass' = $network -match '(?m)^\s*bypass\s*=\s*\["None"\]\s*$'
+            '34c877ad-507e-4c82-993e-3452a6e0ad3c' = $network -match '(?m)^\s*default_action\s*=\s*"Deny"\s*$'
+            '2a1a9cdf-e04d-429a-8416-3bfb72a1b26f' = (
+              $network -match '(?m)^\s*default_action\s*=\s*"Deny"\s*$' -and
+              $network -match '(?m)^\s*ip_rules\s*=\s*\[\s*\]\s*$'
+            )
+            'No public subnet allow rules' = $network -match '(?m)^\s*virtual_network_subnet_ids\s*=\s*\[\s*\]\s*$'
+            'Public network disabled' = $account -match '(?m)^  public_network_access_enabled\s*=\s*false\s*$'
+            'Shared keys disabled' = $account -match '(?m)^  shared_access_key_enabled\s*=\s*false\s*$'
+            'Premium FileStorage retained' = (
+              $account -match '(?m)^  account_kind\s*=\s*"FileStorage"\s*$' -and
+              $account -match '(?m)^  account_tier\s*=\s*"Premium"\s*$'
+            )
+            'Entra Kerberos retained' = $account -match '(?m)^\s*directory_type\s*=\s*"AADKERB"\s*$'
+            'File private endpoint retained' = $source -match '(?m)^\s*subresource_names\s*=\s*\["file"\]\s*$'
+          }
+          foreach ($check in $checks.GetEnumerator()) {
+            if (-not $check.Value) { throw "FSLogix storage contract failed: $($check.Key)" }
+          }
       - name: Check opt-in defaults and rendered contract without Azure
         shell: pwsh
         env:

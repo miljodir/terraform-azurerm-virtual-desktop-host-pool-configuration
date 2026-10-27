@@ -78,6 +78,8 @@ Map **keys** and feature enablement must be plan-known; group IDs can be provide
 
 The account is private-only Premium FileStorage with keys disabled, AADKERB, TLS 1.2 minimum, SMB 3.1.1, Kerberos-only authentication, AES-256 tickets/channel encryption, and 30-day share soft-delete retention. No default share permission is granted. A File private endpoint is created in the data RG. Register `Microsoft.Storage` and `Microsoft.Network` in the caller's provider setup. This feature adds no passwords, tenant writes, diagnostic settings or tags.
 
+Storage creation explicitly sets `allowed_copy_scope = "AAD"`, `local_user_enabled = false`, and inline network ACLs with `default_action = "Deny"`, `bypass = ["None"]`, and empty IP/subnet allow lists. These satisfy the storage guardrails' required request properties; disabling public network access alone does not satisfy policies that inspect `networkAcls`. Access remains through the File private endpoint, not public firewall exceptions. The [copy-scope restriction](https://learn.microsoft.com/en-us/azure/storage/common/security-restrict-copy-operations) also applies to Azure Files copy APIs; cross-account copy sources must belong to the same Entra tenant. Local storage users are separate from Entra Kerberos identities and remain disabled.
+
 The module-owned data RG, storage account and share have `prevent_destroy`; none depends on the host pool or host RG. Caller-owned RG/vault protection remains the caller's responsibility. Keep account/RG/share identity stable across host replacement. Disabling the feature or changing immutable storage properties is intentionally blocked while protected resources remain in configuration. `prevent_destroy` is a Terraform configuration guard, **not** an Azure lock or backup: removing the entire module/resource declarations removes that protection. Never remove state/configuration or delete the data RG as a host replacement procedure.
 
 ### Outputs and canonical bootstrap consumption
@@ -171,5 +173,7 @@ Existing object outputs remain available: `resource_group.id`/`.name`, `hostpool
 ## Validation and workflows
 
 Pull requests run `terraform fmt -check -diff`, `terraform init -backend=false -input=false`, and `terraform validate -no-color` in GitHub Actions without Azure credentials or a deployment. Do not run plan or apply as part of module validation.
+
+The workflow also checks the explicit FSLogix storage source contract against the five reported storage-policy denials (copy scope, local users, bypass, default deny, and no IP allow rules) and preserves private-only access, Premium FileStorage, and AADKERB. These are configuration regressions, not live Azure Policy evaluation or proof of service acceptance. Publish an immutable module commit or release containing the fix before updating a consumer pin; an older pinned revision does not acquire these settings.
 
 The release workflow uses the verified current major aliases: `generate-release-metadata/v1`, `create-release/v1`, and `update-wiki/v1`. These already use current action majors including checkout v7; action implementations belong to `miljodir/workflow-templates`, not this module. The validation workflow uses checkout v7 and setup-terraform v4. All GitHub Actions references use major aliases.
