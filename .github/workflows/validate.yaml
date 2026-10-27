@@ -25,6 +25,7 @@ jobs:
         shell: pwsh
         run: |
           $source = Get-Content fslogix.tf -Raw
+          $variables = Get-Content fslogix-variables.tf -Raw
           $account = [regex]::Match($source, '(?ms)^module "fslogix" \{.*?(?=^moved |\z)').Value
           $network = [regex]::Match($account, '(?ms)^  network_rules = \{\r?\n(.*?)^  \}').Groups[1].Value
           $checks = @{
@@ -55,7 +56,10 @@ jobs:
             'Entra Kerberos retained' = $account -match '(?m)^\s*directory_type\s*=\s*"AADKERB"\s*$'
             'File private endpoint retained' = $account -match '(?m)^  private_endpoints\s*=\s*\["file"\]\s*$'
             'Caller private endpoint subnet retained' = $account -match '(?m)^  subnet_id\s*=\s*each\.value\.private_endpoint_subnet_id\s*$'
-            'Caller private DNS zone retained' = $account -match '(?m)^  private_dns_zone_ids\s*=\s*\{ file = \[each\.value\.private_dns_zone_id\] \}\s*$'
+            'Policy-managed DNS by default with optional override' = (
+              $variables -match '(?m)^\s*private_dns_zone_id\s*=\s*optional\(string\)\s*$' -and
+              $account -match '(?m)^  private_dns_zone_ids\s*=\s*each\.value\.private_dns_zone_id == null \? \{\} : \{ file = \[each\.value\.private_dns_zone_id\] \}\s*$'
+            )
             'Share retention retained' = $account -match '(?s)retention_policy = \{\s*days = 30\s*\}'
             'SMB hardening retained' = (
               $account -match '(?m)^\s*versions\s*=\s*\["SMB3\.1\.1"\]\s*$' -and
@@ -83,15 +87,19 @@ jobs:
           $env:TF_VAR_fslogix = @{
             storage_account_name = 'pgisdskprofiles'
             private_endpoint_subnet_id = $env:TF_VAR_subnet_id
-            private_dns_zone_id = '/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns/providers/Microsoft.Network/privateDnsZones/privatelink.file.core.windows.net'
             create_resource_group = $false
             resource_group_name = 'p-gis-dsk-data'
             user_group_ids = @{ users = '11111111-1111-1111-1111-111111111111' }
             administrator_group_ids = @{ admins = '22222222-2222-2222-2222-222222222222' }
           } | ConvertTo-Json -Compress
-          $expression = 'local.fslogix_enabled && length(local.fslogix) == 1 && length(local.fslogix_admin_assignments) == 3 && var.fslogix.storage_account_name == "pgisdskprofiles" && var.fslogix.replication_type == "ZRS" && local.vm_name_prefix == "pgisdsk" && local.fslogix_profile_path == "\\\\pgisdskprofiles.file.core.windows.net\\profiles" && length(regexall("__PROFILE_PATH__|__HOST_PREFIX_BASE64__|__CONTENT_VERSION__", local.fslogix_bootstrap_content)) == 0'
+          $expression = 'local.fslogix_enabled && length(local.fslogix) == 1 && length(local.fslogix_admin_assignments) == 3 && var.fslogix.storage_account_name == "pgisdskprofiles" && var.fslogix.replication_type == "ZRS" && var.fslogix.private_dns_zone_id == null && local.vm_name_prefix == "pgisdsk" && local.fslogix_profile_path == "\\\\pgisdskprofiles.file.core.windows.net\\profiles" && length(regexall("__PROFILE_PATH__|__HOST_PREFIX_BASE64__|__CONTENT_VERSION__", local.fslogix_bootstrap_content)) == 0'
           $result = $expression | terraform console -no-color
           if ($LASTEXITCODE -ne 0 -or ($result | Out-String).Trim() -ne 'true') { throw "Enabled contract failed: $result" }
+          $config = $env:TF_VAR_fslogix | ConvertFrom-Json -AsHashtable
+          $config.private_dns_zone_id = '/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns/providers/Microsoft.Network/privateDnsZones/privatelink.file.core.windows.net'
+          $env:TF_VAR_fslogix = $config | ConvertTo-Json -Compress
+          $result = 'var.fslogix.private_dns_zone_id == "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns/providers/Microsoft.Network/privateDnsZones/privatelink.file.core.windows.net"' | terraform console -no-color
+          if ($LASTEXITCODE -ne 0 -or ($result | Out-String).Trim() -ne 'true') { throw "Explicit DNS override contract failed: $result" }
       - name: Parse canonical PowerShell bootstrap
         shell: pwsh
         run: |

@@ -3,7 +3,7 @@ variable "fslogix" {
   type = object({
     storage_account_name       = string
     private_endpoint_subnet_id = string
-    private_dns_zone_id        = string
+    private_dns_zone_id        = optional(string)
     user_group_ids             = map(string)
     administrator_group_ids    = map(string)
     create_resource_group      = optional(bool, true)

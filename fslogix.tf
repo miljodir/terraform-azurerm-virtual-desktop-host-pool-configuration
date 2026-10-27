@@ -62,7 +62,7 @@ module "fslogix" {
 
   subnet_id            = each.value.private_endpoint_subnet_id
   private_endpoints    = ["file"]
-  private_dns_zone_ids = { file = [each.value.private_dns_zone_id] }
+  private_dns_zone_ids = each.value.private_dns_zone_id == null ? {} : { file = [each.value.private_dns_zone_id] }
 
   network_rules = {
     default_action = "Deny"

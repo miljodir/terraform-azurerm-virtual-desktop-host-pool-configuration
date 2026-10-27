@@ -49,7 +49,6 @@ fslogix = {
   resource_group_name        = azurerm_resource_group.desktop_data.name
   location                   = azurerm_resource_group.desktop_data.location
   private_endpoint_subnet_id = var.private_endpoint_subnet_id
-  private_dns_zone_id        = var.file_private_dns_zone_id
   user_group_ids             = { desktop = var.desktop_users_object_id }
   administrator_group_ids    = { approved = var.profile_administrators_object_id }
   replication_type           = "ZRS"
@@ -64,7 +63,7 @@ One nullable typed object, `fslogix`:
 | --- | --- | --- |
 | `storage_account_name` | required string | Globally unique 3–24 lowercase alphanumeric account name. |
 | `private_endpoint_subnet_id` | required string | Existing private endpoint subnet ARM ID. |
-| `private_dns_zone_id` | required string | Existing `privatelink.file.core.windows.net` zone ARM ID; caller links DNS to the host network. |
+| `private_dns_zone_id` | string / null | Optional existing `privatelink.file.core.windows.net` zone ARM ID for an explicit DNS-zone group. Leave null when Azure Policy manages private-endpoint DNS. |
 | `user_group_ids` | required map(string) | Stable caller keys → cloud-only desktop user Entra group object IDs. |
 | `administrator_group_ids` | required map(string) | Stable caller keys → approved profile administrator group object IDs. |
 | `create_resource_group` | bool / `true` | False uses a caller-owned existing data RG without managing its lifecycle. |
@@ -78,7 +77,9 @@ Map **keys** and feature enablement must be plan-known; group IDs can be provide
 
 The account is private-only Premium FileStorage with keys disabled, AADKERB, TLS 1.2 minimum, SMB 3.1.1, Kerberos-only authentication, AES-256 tickets/channel encryption, and 30-day share soft-delete retention. No default share permission is granted. A File private endpoint is created in the data RG. Register `Microsoft.Storage` and `Microsoft.Network` in the caller's provider setup. This feature adds no passwords, tenant writes, diagnostic settings or tags.
 
-The account and File private endpoint are created by `miljodir/storage-account/azurerm` with `version = "~> 1.0"`. The existing `fslogix.private_endpoint_subnet_id` is passed to its `subnet_id` input, and `private_dns_zone_id` to its File DNS-zone mapping. This is the private endpoint subnet, not a public storage service-endpoint allow rule. The account explicitly uses `allowed_copy_scope = "AAD"` and network ACLs with `default_action = "Deny"`, `bypass = ["None"]`, and empty IP/subnet allow lists. SFTP and HNS remain disabled, so the shared module disables local storage users. `allow_known_public_ips = false` prevents its development-environment convenience behavior from enabling public access or public IP exceptions. Disabling public network access alone does not satisfy policies that inspect `networkAcls`. The [copy-scope restriction](https://learn.microsoft.com/en-us/azure/storage/common/security-restrict-copy-operations) also applies to Azure Files copy APIs; cross-account copy sources must belong to the same Entra tenant.
+The account and File private endpoint are created by `miljodir/storage-account/azurerm` with `version = "~> 1.0"`. The existing `fslogix.private_endpoint_subnet_id` is passed to its `subnet_id` input. This is the private endpoint subnet, not a public storage service-endpoint allow rule. By default no DNS-zone mapping is passed: Azure Policy manages private-endpoint DNS. Only set `private_dns_zone_id` when an explicit module-created File DNS-zone group is needed outside that policy setup. The shared module ignores DNS-zone-group changes, preserving policy-managed or existing groups; verify private DNS resolution and policy remediation before using the share.
+
+The account explicitly uses `allowed_copy_scope = "AAD"` and network ACLs with `default_action = "Deny"`, `bypass = ["None"]`, and empty IP/subnet allow lists. SFTP and HNS remain disabled, so the shared module disables local storage users. `allow_known_public_ips = false` prevents its development-environment convenience behavior from enabling public access or public IP exceptions. Disabling public network access alone does not satisfy policies that inspect `networkAcls`. The [copy-scope restriction](https://learn.microsoft.com/en-us/azure/storage/common/security-restrict-copy-operations) also applies to Azure Files copy APIs; cross-account copy sources must belong to the same Entra tenant.
 
 **Storage-module release prerequisite:** the existing storage-module release `1.11.1` does not expose the required `share_properties`, `private_dns_zone_ids`, and `allow_known_public_ips` inputs and forces Premium replication to LRS. [miljodir/terraform-azurerm-storage-account#29](https://github.com/miljodir/terraform-azurerm-storage-account/pull/29) adds these capabilities. A compatible new 1.x release containing those changes must be published before this configuration can initialize and validate against the registry. Do not deploy against the older release or temporarily enable public access to work around it. Terraform 1.7 or newer is required by the shared module's existing `removed` block.
 
