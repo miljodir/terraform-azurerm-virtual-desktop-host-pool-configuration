@@ -45,7 +45,7 @@ module "fslogix" {
   for_each = local.fslogix
 
   source  = "miljodir/storage-account/azurerm"
-  version = "~> 1.0"
+  version = "~> 1.12"
 
   storage_account_name = each.value.storage_account_name
   location             = coalesce(each.value.location, var.location)

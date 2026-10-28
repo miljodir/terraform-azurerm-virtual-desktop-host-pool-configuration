@@ -31,7 +31,7 @@ jobs:
           $checks = @{
             'Shared storage module' = (
               $account -match '(?m)^  source\s*=\s*"miljodir/storage-account/azurerm"\s*$' -and
-              $account -match '(?m)^  version\s*=\s*"~> 1\.0"\s*$' -and
+              $account -match '(?m)^  version\s*=\s*"~> 1\.12"\s*$' -and
               $source -notmatch '(?m)^resource "azurerm_(storage_account|private_endpoint)" "fslogix"'
             )
             'Deny-Storage-CopyScope' = $account -match '(?m)^  allowed_copy_scope\s*=\s*"AAD"\s*$'
@@ -73,6 +73,25 @@ jobs:
           foreach ($check in $checks.GetEnumerator()) {
             if (-not $check.Value) { throw "FSLogix storage contract failed: $($check.Key)" }
           }
+      # The shared storage module references the internal cp-shared repository over SSH,
+      # which terraform init downloads even when that nested module has count = 0.
+      - name: Setup SSH key for internal module access
+        env:
+          PRIVATE_KEY: ${{ secrets.ACCESS_SHARED_CONFIGURATION }}
+        run: |
+          if [ -z "$PRIVATE_KEY" ]; then
+            echo "::error::ACCESS_SHARED_CONFIGURATION is unavailable (e.g. fork pull request); cannot download cp-shared."
+            exit 1
+          fi
+          SSH_PATH="$HOME/.ssh"
+          mkdir -p "$SSH_PATH"
+          chmod 700 "$SSH_PATH"
+          echo "$PRIVATE_KEY" > "$SSH_PATH/id_rsa"
+          chmod 600 "$SSH_PATH/id_rsa"
+          eval "$(ssh-agent -s)"
+          ssh-add "$SSH_PATH/id_rsa"
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
       - run: terraform init -backend=false -input=false
       - run: terraform validate -no-color
       - name: Check opt-in defaults and rendered contract without Azure
