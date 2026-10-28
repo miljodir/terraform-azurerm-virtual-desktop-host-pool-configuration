@@ -61,11 +61,10 @@ jobs:
               $account -match '(?m)^  private_dns_zone_ids\s*=\s*each\.value\.private_dns_zone_id == null \? \{\} : \{ file = \[each\.value\.private_dns_zone_id\] \}\s*$'
             )
             'Share retention retained' = $account -match '(?s)retention_policy = \{\s*days = 30\s*\}'
-            'SMB hardening retained' = (
-              $account -match '(?m)^\s*versions\s*=\s*\["SMB3\.1\.1"\]\s*$' -and
-              $account -match '(?m)^\s*authentication_types\s*=\s*\["Kerberos"\]\s*$' -and
-              $account -match '(?m)^\s*kerberos_ticket_encryption_type\s*=\s*\["AES-256"\]\s*$' -and
-              $account -match '(?m)^\s*channel_encryption_type\s*=\s*\["AES-256-GCM"\]\s*$'
+            'SMB hardened default retained' = (
+              $source -match '(?ms)^    maximum_security = \{\s*versions\s*=\s*\["SMB3\.1\.1"\]\s*authentication_types\s*=\s*\["Kerberos"\]\s*kerberos_ticket_encryption_type\s*=\s*\["AES-256"\]\s*channel_encryption_type\s*=\s*\["AES-256-GCM"\]\s*\}' -and
+              $variables -match '(?m)^\s*smb_security_profile\s*=\s*optional\(string, "maximum_security"\)\s*$' -and
+              $account -match '(?m)^\s*smb\s*=\s*each\.value\.smb_settings != null \? each\.value\.smb_settings : local\.fslogix_smb_profiles\[each\.value\.smb_security_profile\]\s*$'
             )
             'Storage account state move' = $source -match '(?s)moved \{\s*from = azurerm_storage_account\.fslogix\["profiles"\]\s*to\s*=\s*module\.fslogix\["profiles"\]\.azurerm_storage_account\.account\s*\}'
             'File endpoint state move' = $source -match '(?s)moved \{\s*from = azurerm_private_endpoint\.fslogix\["profiles"\]\s*to\s*=\s*module\.fslogix\["profiles"\]\.azurerm_private_endpoint\.pe\["file"\]\s*\}'

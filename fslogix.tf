@@ -18,6 +18,22 @@ locals {
       ]) : assignment.key => assignment
     }
   ]...)
+  # Mirrors the Azure portal "File shares > Security" presets.
+  fslogix_smb_profiles = {
+    maximum_security = {
+      versions                        = ["SMB3.1.1"]
+      authentication_types            = ["Kerberos"]
+      kerberos_ticket_encryption_type = ["AES-256"]
+      channel_encryption_type         = ["AES-256-GCM"]
+    }
+    maximum_compatibility = {
+      versions                        = ["SMB2.1", "SMB3.0", "SMB3.1.1"]
+      authentication_types            = ["NTLMv2", "Kerberos"]
+      kerberos_ticket_encryption_type = ["RC4-HMAC", "AES-256"]
+      channel_encryption_type         = ["AES-128-CCM", "AES-128-GCM", "AES-256-GCM"]
+    }
+  }
+
   fslogix_profile_path          = local.fslogix_enabled ? "\\\\${var.fslogix.storage_account_name}.file.core.windows.net\\${var.fslogix.share_name}" : null
   fslogix_bootstrap_source_path = "${path.module}/scripts/Set-FSLogixHost.ps1"
   fslogix_bootstrap_unversioned = replace(
@@ -79,12 +95,7 @@ module "fslogix" {
     retention_policy = {
       days = 30
     }
-    smb = {
-      versions                        = ["SMB3.1.1"]
-      authentication_types            = ["Kerberos"]
-      kerberos_ticket_encryption_type = ["AES-256"]
-      channel_encryption_type         = ["AES-256-GCM"]
-    }
+    smb = each.value.smb_settings != null ? each.value.smb_settings : local.fslogix_smb_profiles[each.value.smb_security_profile]
   }
 }
 

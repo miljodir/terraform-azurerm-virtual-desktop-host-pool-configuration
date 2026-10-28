@@ -72,10 +72,23 @@ One nullable typed object, `fslogix`:
 | `replication_type` | string / `ZRS` | Premium ZRS; LRS allowed for dev/test or regional availability. |
 | `share_name` | string / `profiles` | SMB share name. |
 | `quota_gib` | number / `100` | Integer 100–102400 GiB. |
+| `smb_security_profile` | string / `maximum_security` | Azure Files SMB security preset: `maximum_security` (hardened default) or `maximum_compatibility` (portal "Maximum compatibility"). Ignored when `smb_settings` is set. |
+| `smb_settings` | object / null | Custom SMB override with nonempty lists `versions`, `authentication_types`, `kerberos_ticket_encryption_type`, `channel_encryption_type` (Azure-allowed values only). Takes precedence over `smb_security_profile`. |
 
 Map **keys** and feature enablement must be plan-known; group IDs can be provider-computed. Keep admin groups distinct from user groups. Only `Group` principals are assigned. Users receive share-scoped **Storage File Data SMB Share Contributor**. Administrators receive share-scoped **Storage File Data SMB Share Elevated Contributor**, account-scoped **Storage File Data Privileged Contributor**, and account-scoped **Reader** (explicitly needed for portal administration). Privileged OAuth access bypasses file ACLs: restrict it to approved administrators; this dedicated account should contain only profile data.
 
-The account is private-only Premium FileStorage with keys disabled, AADKERB, TLS 1.2 minimum, SMB 3.1.1, Kerberos-only authentication, AES-256 tickets/channel encryption, and 30-day share soft-delete retention. No default share permission is granted. A File private endpoint is created in the data RG. Register `Microsoft.Storage` and `Microsoft.Network` in the caller's provider setup. This feature adds no passwords, tenant writes, diagnostic settings or tags.
+The account is private-only Premium FileStorage with keys disabled, AADKERB, TLS 1.2 minimum, configurable SMB security (see below), and 30-day share soft-delete retention. No default share permission is granted. A File private endpoint is created in the data RG. Register `Microsoft.Storage` and `Microsoft.Network` in the caller's provider setup. This feature adds no passwords, tenant writes, diagnostic settings or tags.
+
+#### SMB security profile
+
+| Setting | `maximum_security` (default) | `maximum_compatibility` |
+| --- | --- | --- |
+| SMB versions | SMB3.1.1 | SMB2.1, SMB3.0, SMB3.1.1 |
+| Authentication | Kerberos | NTLMv2, Kerberos |
+| Kerberos ticket encryption | AES-256 | RC4-HMAC, AES-256 |
+| Channel encryption | AES-256-GCM | AES-128-CCM, AES-128-GCM, AES-256-GCM |
+
+The default is unchanged from earlier releases. **Known issue:** on the GIS desktop (`pgisdskprofiles`, Entra Kerberos/AADKERB, hybrid identities), the hardened settings caused FSLogix sign-in to fail with "Access is denied" (0x5) despite a valid `cifs/` Kerberos ticket and correct RBAC/ACLs. Switching the account to portal **Maximum compatibility** fixed sign-in. The exact culprit setting is unconfirmed. Set `smb_security_profile = "maximum_compatibility"` to keep that fix under Terraform (otherwise the next apply reverts the portal change); once the culprit is identified, narrow it with `smb_settings`. Prefer `maximum_security` where it is proven to work.
 
 The account and File private endpoint are created by `miljodir/storage-account/azurerm` with `version = "~> 1.12"`. The existing `fslogix.private_endpoint_subnet_id` is passed to its `subnet_id` input. This is the private endpoint subnet, not a public storage service-endpoint allow rule. By default no DNS-zone mapping is passed: Azure Policy manages private-endpoint DNS. Only set `private_dns_zone_id` when an explicit module-created File DNS-zone group is needed outside that policy setup. The shared module ignores DNS-zone-group changes, preserving policy-managed or existing groups; verify private DNS resolution and policy remediation before using the share.
 
@@ -179,6 +192,6 @@ Existing object outputs remain available: `resource_group.id`/`.name`, `hostpool
 
 Pull requests run `terraform fmt -check -diff`, `terraform init -backend=false -input=false`, and `terraform validate -no-color` in GitHub Actions without Azure credentials or a deployment. Do not run plan or apply as part of module validation.
 
-The workflow also checks the FSLogix shared-module input contract for the five reported storage-policy denials (copy scope, disabled local-user prerequisites, bypass, default deny, and no IP allow rules), private subnet/DNS forwarding, state moves, Premium FileStorage, and AADKERB. These are configuration regressions, not live Azure Policy evaluation or proof of service acceptance. Initialization also requires authorized access to the shared storage module's internal `cp-shared` dependency, even for private-only accounts; the workflow loads the organization `ACCESS_SHARED_CONFIGURATION` SSH key for this (unavailable to fork pull requests). Publish an immutable host-pool module release before updating a consumer pin; an older pinned revision does not acquire these settings.
+The workflow also checks the FSLogix shared-module input contract for the five reported storage-policy denials (copy scope, disabled local-user prerequisites, bypass, default deny, and no IP allow rules), private subnet/DNS forwarding, state moves, Premium FileStorage, AADKERB, and the hardened default SMB preset (`maximum_security`). These are configuration regressions, not live Azure Policy evaluation or proof of service acceptance. Initialization also requires authorized access to the shared storage module's internal `cp-shared` dependency, even for private-only accounts; the workflow loads the organization `ACCESS_SHARED_CONFIGURATION` SSH key for this (unavailable to fork pull requests). Publish an immutable host-pool module release before updating a consumer pin; an older pinned revision does not acquire these settings.
 
 The release workflow uses the verified current major aliases: `generate-release-metadata/v1`, `create-release/v1`, and `update-wiki/v1`. These already use current action majors including checkout v7; action implementations belong to `miljodir/workflow-templates`, not this module. The validation workflow uses checkout v7 and setup-terraform v4. All GitHub Actions references use major aliases.
