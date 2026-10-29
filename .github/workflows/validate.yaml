@@ -2,7 +2,6 @@ name: Validate module
 
 on:
   pull_request:
-    branches: [main]
     paths:
       - "**.tf"
       - "scripts/**"
@@ -19,9 +18,79 @@ jobs:
       - uses: actions/checkout@v7
       - uses: hashicorp/setup-terraform@v4
         with:
-          terraform_version: "~1.5.0"
+          terraform_version: "~1.7.0"
           terraform_wrapper: false
       - run: terraform fmt -check -diff
+      - name: Check FSLogix storage guardrail source contract
+        shell: pwsh
+        run: |
+          $source = Get-Content fslogix.tf -Raw
+          $variables = Get-Content fslogix-variables.tf -Raw
+          $account = [regex]::Match($source, '(?ms)^module "fslogix" \{.*?(?=^moved |\z)').Value
+          $network = [regex]::Match($account, '(?ms)^  network_rules = \{\r?\n(.*?)^  \}').Groups[1].Value
+          $checks = @{
+            'Shared storage module' = (
+              $account -match '(?m)^  source\s*=\s*"miljodir/storage-account/azurerm"\s*$' -and
+              $account -match '(?m)^  version\s*=\s*"~> 1\.12"\s*$' -and
+              $source -notmatch '(?m)^resource "azurerm_(storage_account|private_endpoint)" "fslogix"'
+            )
+            'Deny-Storage-CopyScope' = $account -match '(?m)^  allowed_copy_scope\s*=\s*"AAD"\s*$'
+            'Deny-Storage-LocalUser inputs' = (
+              $account -match '(?m)^  sftp_enabled\s*=\s*false\s*$' -and
+              $account -match '(?m)^  is_hns_enabled\s*=\s*false\s*$'
+            )
+            'Deny-Storage-NetworkAclsBypass' = $network -match '(?m)^\s*bypass\s*=\s*\["None"\]\s*$'
+            '34c877ad-507e-4c82-993e-3452a6e0ad3c' = $network -match '(?m)^\s*default_action\s*=\s*"Deny"\s*$'
+            '2a1a9cdf-e04d-429a-8416-3bfb72a1b26f' = (
+              $network -match '(?m)^\s*default_action\s*=\s*"Deny"\s*$' -and
+              $network -match '(?m)^\s*ip_rules\s*=\s*\[\s*\]\s*$'
+            )
+            'No public subnet allow rules' = $network -match '(?m)^\s*subnet_ids\s*=\s*\[\s*\]\s*$'
+            'Public network disabled' = $account -match '(?m)^  public_network_access_enabled\s*=\s*false\s*$'
+            'No development public IP override' = $account -match '(?m)^  allow_known_public_ips\s*=\s*false\s*$'
+            'Shared keys disabled' = $account -match '(?m)^  shared_access_key_enabled\s*=\s*false\s*$'
+            'Premium FileStorage retained' = (
+              $account -match '(?m)^  account_kind\s*=\s*"FileStorage"\s*$' -and
+              $account -match '(?m)^  sku_name\s*=\s*"Premium_\$\{each\.value\.replication_type\}"\s*$'
+            )
+            'Entra Kerberos retained' = $account -match '(?m)^\s*directory_type\s*=\s*"AADKERB"\s*$'
+            'File private endpoint retained' = $account -match '(?m)^  private_endpoints\s*=\s*\["file"\]\s*$'
+            'Caller private endpoint subnet retained' = $account -match '(?m)^  subnet_id\s*=\s*each\.value\.private_endpoint_subnet_id\s*$'
+            'Policy-managed DNS by default with optional override' = (
+              $variables -match '(?m)^\s*private_dns_zone_id\s*=\s*optional\(string\)\s*$' -and
+              $account -match '(?m)^  private_dns_zone_ids\s*=\s*each\.value\.private_dns_zone_id == null \? \{\} : \{ file = \[each\.value\.private_dns_zone_id\] \}\s*$'
+            )
+            'Share retention retained' = $account -match '(?s)retention_policy = \{\s*days = 30\s*\}'
+            'SMB hardened default retained' = (
+              $source -match '(?ms)^    maximum_security = \{\s*versions\s*=\s*\["SMB3\.1\.1"\]\s*authentication_types\s*=\s*\["Kerberos"\]\s*kerberos_ticket_encryption_type\s*=\s*\["AES-256"\]\s*channel_encryption_type\s*=\s*\["AES-256-GCM"\]\s*\}' -and
+              $variables -match '(?m)^\s*smb_security_profile\s*=\s*optional\(string, "maximum_security"\)\s*$' -and
+              $account -match '(?m)^\s*smb\s*=\s*each\.value\.smb_settings != null \? each\.value\.smb_settings : local\.fslogix_smb_profiles\[each\.value\.smb_security_profile\]\s*$'
+            )
+            'Storage account state move' = $source -match '(?s)moved \{\s*from = azurerm_storage_account\.fslogix\["profiles"\]\s*to\s*=\s*module\.fslogix\["profiles"\]\.azurerm_storage_account\.account\s*\}'
+            'File endpoint state move' = $source -match '(?s)moved \{\s*from = azurerm_private_endpoint\.fslogix\["profiles"\]\s*to\s*=\s*module\.fslogix\["profiles"\]\.azurerm_private_endpoint\.pe\["file"\]\s*\}'
+          }
+          foreach ($check in $checks.GetEnumerator()) {
+            if (-not $check.Value) { throw "FSLogix storage contract failed: $($check.Key)" }
+          }
+      # The shared storage module references the internal cp-shared repository over SSH,
+      # which terraform init downloads even when that nested module has count = 0.
+      - name: Setup SSH key for internal module access
+        env:
+          PRIVATE_KEY: ${{ secrets.ACCESS_SHARED_CONFIGURATION }}
+        run: |
+          if [ -z "$PRIVATE_KEY" ]; then
+            echo "::error::ACCESS_SHARED_CONFIGURATION is unavailable (e.g. fork pull request); cannot download cp-shared."
+            exit 1
+          fi
+          SSH_PATH="$HOME/.ssh"
+          mkdir -p "$SSH_PATH"
+          chmod 700 "$SSH_PATH"
+          echo "$PRIVATE_KEY" > "$SSH_PATH/id_rsa"
+          chmod 600 "$SSH_PATH/id_rsa"
+          eval "$(ssh-agent -s)"
+          ssh-add "$SSH_PATH/id_rsa"
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
       - run: terraform init -backend=false -input=false
       - run: terraform validate -no-color
       - name: Check opt-in defaults and rendered contract without Azure
@@ -36,15 +105,19 @@ jobs:
           $env:TF_VAR_fslogix = @{
             storage_account_name = 'pgisdskprofiles'
             private_endpoint_subnet_id = $env:TF_VAR_subnet_id
-            private_dns_zone_id = '/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns/providers/Microsoft.Network/privateDnsZones/privatelink.file.core.windows.net'
             create_resource_group = $false
             resource_group_name = 'p-gis-dsk-data'
             user_group_ids = @{ users = '11111111-1111-1111-1111-111111111111' }
             administrator_group_ids = @{ admins = '22222222-2222-2222-2222-222222222222' }
           } | ConvertTo-Json -Compress
-          $expression = 'local.fslogix_enabled && length(local.fslogix) == 1 && length(local.fslogix_admin_assignments) == 3 && var.fslogix.storage_account_name == "pgisdskprofiles" && var.fslogix.replication_type == "ZRS" && local.vm_name_prefix == "pgisdsk" && local.fslogix_profile_path == "\\\\pgisdskprofiles.file.core.windows.net\\profiles" && length(regexall("__PROFILE_PATH__|__HOST_PREFIX_BASE64__|__CONTENT_VERSION__", local.fslogix_bootstrap_content)) == 0'
+          $expression = 'local.fslogix_enabled && length(local.fslogix) == 1 && length(local.fslogix_admin_assignments) == 3 && var.fslogix.storage_account_name == "pgisdskprofiles" && var.fslogix.replication_type == "ZRS" && var.fslogix.private_dns_zone_id == null && local.vm_name_prefix == "pgisdsk" && local.fslogix_profile_path == "\\\\pgisdskprofiles.file.core.windows.net\\profiles" && length(regexall("__PROFILE_PATH__|__HOST_PREFIX_BASE64__|__CONTENT_VERSION__", local.fslogix_bootstrap_content)) == 0'
           $result = $expression | terraform console -no-color
           if ($LASTEXITCODE -ne 0 -or ($result | Out-String).Trim() -ne 'true') { throw "Enabled contract failed: $result" }
+          $config = $env:TF_VAR_fslogix | ConvertFrom-Json -AsHashtable
+          $config.private_dns_zone_id = '/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns/providers/Microsoft.Network/privateDnsZones/privatelink.file.core.windows.net'
+          $env:TF_VAR_fslogix = $config | ConvertTo-Json -Compress
+          $result = 'var.fslogix.private_dns_zone_id == "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns/providers/Microsoft.Network/privateDnsZones/privatelink.file.core.windows.net"' | terraform console -no-color
+          if ($LASTEXITCODE -ne 0 -or ($result | Out-String).Trim() -ne 'true') { throw "Explicit DNS override contract failed: $result" }
       - name: Parse canonical PowerShell bootstrap
         shell: pwsh
         run: |

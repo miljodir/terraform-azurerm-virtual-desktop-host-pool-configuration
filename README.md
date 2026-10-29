@@ -49,7 +49,6 @@ fslogix = {
   resource_group_name        = azurerm_resource_group.desktop_data.name
   location                   = azurerm_resource_group.desktop_data.location
   private_endpoint_subnet_id = var.private_endpoint_subnet_id
-  private_dns_zone_id        = var.file_private_dns_zone_id
   user_group_ids             = { desktop = var.desktop_users_object_id }
   administrator_group_ids    = { approved = var.profile_administrators_object_id }
   replication_type           = "ZRS"
@@ -64,7 +63,7 @@ One nullable typed object, `fslogix`:
 | --- | --- | --- |
 | `storage_account_name` | required string | Globally unique 3–24 lowercase alphanumeric account name. |
 | `private_endpoint_subnet_id` | required string | Existing private endpoint subnet ARM ID. |
-| `private_dns_zone_id` | required string | Existing `privatelink.file.core.windows.net` zone ARM ID; caller links DNS to the host network. |
+| `private_dns_zone_id` | string / null | Optional existing `privatelink.file.core.windows.net` zone ARM ID for an explicit DNS-zone group. Leave null when Azure Policy manages private-endpoint DNS. |
 | `user_group_ids` | required map(string) | Stable caller keys → cloud-only desktop user Entra group object IDs. |
 | `administrator_group_ids` | required map(string) | Stable caller keys → approved profile administrator group object IDs. |
 | `create_resource_group` | bool / `true` | False uses a caller-owned existing data RG without managing its lifecycle. |
@@ -73,12 +72,35 @@ One nullable typed object, `fslogix`:
 | `replication_type` | string / `ZRS` | Premium ZRS; LRS allowed for dev/test or regional availability. |
 | `share_name` | string / `profiles` | SMB share name. |
 | `quota_gib` | number / `100` | Integer 100–102400 GiB. |
+| `smb_security_profile` | string / `maximum_security` | Azure Files SMB security preset: `maximum_security` (hardened default) or `maximum_compatibility` (portal "Maximum compatibility"). Ignored when `smb_settings` is set. |
+| `smb_settings` | object / null | Custom SMB override with nonempty lists `versions`, `authentication_types`, `kerberos_ticket_encryption_type`, `channel_encryption_type` (Azure-allowed values only). Takes precedence over `smb_security_profile`. |
 
 Map **keys** and feature enablement must be plan-known; group IDs can be provider-computed. Keep admin groups distinct from user groups. Only `Group` principals are assigned. Users receive share-scoped **Storage File Data SMB Share Contributor**. Administrators receive share-scoped **Storage File Data SMB Share Elevated Contributor**, account-scoped **Storage File Data Privileged Contributor**, and account-scoped **Reader** (explicitly needed for portal administration). Privileged OAuth access bypasses file ACLs: restrict it to approved administrators; this dedicated account should contain only profile data.
 
-The account is private-only Premium FileStorage with keys disabled, AADKERB, TLS 1.2 minimum, SMB 3.1.1, Kerberos-only authentication, AES-256 tickets/channel encryption, and 30-day share soft-delete retention. No default share permission is granted. A File private endpoint is created in the data RG. Register `Microsoft.Storage` and `Microsoft.Network` in the caller's provider setup. This feature adds no passwords, tenant writes, diagnostic settings or tags.
+The account is private-only Premium FileStorage with keys disabled, AADKERB, TLS 1.2 minimum, configurable SMB security (see below), and 30-day share soft-delete retention. No default share permission is granted. A File private endpoint is created in the data RG. Register `Microsoft.Storage` and `Microsoft.Network` in the caller's provider setup. This feature adds no passwords, tenant writes, diagnostic settings or tags.
 
-The module-owned data RG, storage account and share have `prevent_destroy`; none depends on the host pool or host RG. Caller-owned RG/vault protection remains the caller's responsibility. Keep account/RG/share identity stable across host replacement. Disabling the feature or changing immutable storage properties is intentionally blocked while protected resources remain in configuration. `prevent_destroy` is a Terraform configuration guard, **not** an Azure lock or backup: removing the entire module/resource declarations removes that protection. Never remove state/configuration or delete the data RG as a host replacement procedure.
+#### SMB security profile
+
+| Setting | `maximum_security` (default) | `maximum_compatibility` |
+| --- | --- | --- |
+| SMB versions | SMB3.1.1 | SMB2.1, SMB3.0, SMB3.1.1 |
+| Authentication | Kerberos | NTLMv2, Kerberos |
+| Kerberos ticket encryption | AES-256 | RC4-HMAC, AES-256 |
+| Channel encryption | AES-256-GCM | AES-128-CCM, AES-128-GCM, AES-256-GCM |
+
+The default is unchanged from earlier releases. **Known issue:** on the GIS desktop (`pgisdskprofiles`, Entra Kerberos/AADKERB, hybrid identities), `maximum_security` caused FSLogix sign-in to fail with "Access is denied" (0x5) despite a valid `cifs/` Kerberos ticket. Switching the account to portal **Maximum compatibility** fixed sign-in. Permissions were ruled out: sign-in kept working after the default share-level permission was removed and access was restricted to the desktop user group via share-scoped RBAC (no "all authenticated users" grant), so the cause is the SMB security settings themselves. Which single setting is responsible (likely the AES-256-only channel or Kerberos ticket encryption) is not yet isolated. All SMB traffic uses TCP 445, so firewall/port rules do not explain the difference.
+
+Set `smb_security_profile = "maximum_compatibility"` for Entra Kerberos FSLogix until the culprit is isolated, otherwise the next apply reverts a portal fix. To isolate it, use `smb_settings` to re-harden one list at a time and test sign-in, checking `Get-SmbConnection` (dialect/encryption), `Get-SmbClientConfiguration` (`EncryptionCiphers`), and `klist` (`cifs/` ticket encryption type) on a session host. Keep `maximum_security` only where sign-in is proven to work.
+
+The account and File private endpoint are created by `miljodir/storage-account/azurerm` with `version = "~> 1.12"`. The existing `fslogix.private_endpoint_subnet_id` is passed to its `subnet_id` input. This is the private endpoint subnet, not a public storage service-endpoint allow rule. By default no DNS-zone mapping is passed: Azure Policy manages private-endpoint DNS. Only set `private_dns_zone_id` when an explicit module-created File DNS-zone group is needed outside that policy setup. The shared module ignores DNS-zone-group changes, preserving policy-managed or existing groups; verify private DNS resolution and policy remediation before using the share.
+
+The account explicitly uses `allowed_copy_scope = "AAD"` and network ACLs with `default_action = "Deny"`, `bypass = ["None"]`, and empty IP/subnet allow lists. SFTP and HNS remain disabled, so the shared module disables local storage users. `allow_known_public_ips = false` prevents its development-environment convenience behavior from enabling public access or public IP exceptions. Disabling public network access alone does not satisfy policies that inspect `networkAcls`. The [copy-scope restriction](https://learn.microsoft.com/en-us/azure/storage/common/security-restrict-copy-operations) also applies to Azure Files copy APIs; cross-account copy sources must belong to the same Entra tenant.
+
+**Storage-module version:** release `1.12.0` of the storage module ([miljodir/terraform-azurerm-storage-account#29](https://github.com/miljodir/terraform-azurerm-storage-account/pull/29)) is the minimum: it exposes the required `share_properties`, `private_dns_zone_ids`, and `allow_known_public_ips` inputs and keeps the requested Premium replication (for example `Premium_ZRS`). Earlier releases such as `1.11.1` lack these inputs and force Premium replication to LRS; do not pin them or temporarily enable public access as a workaround. Terraform 1.7 or newer is required by the shared module's existing `removed` block.
+
+The module-owned data RG and share retain `prevent_destroy`; the shared-module account has no `prevent_destroy` or Azure lock. None depends on the host pool or host RG. Caller-owned RG/vault protection remains the caller's responsibility. Keep account/RG/share identity stable across host replacement and review all deletion/replacement plans. `prevent_destroy` is a Terraform configuration guard, **not** an Azure lock or backup: removing the entire module/resource declarations removes that protection. Never remove state/configuration or delete the data RG as a host replacement procedure.
+
+State-migration blocks move the former `azurerm_storage_account.fslogix["profiles"]` and `azurerm_private_endpoint.fslogix["profiles"]` into the shared module without changing their Azure IDs. The shared module ignores endpoint/connection-name changes, retaining the existing endpoint names during migration; newly created endpoints use its naming convention. Review the consumer's GitHub Actions plan to confirm moves rather than replacements. The output shape and all existing FSLogix inputs remain unchanged.
 
 ### Outputs and canonical bootstrap consumption
 
@@ -171,5 +193,7 @@ Existing object outputs remain available: `resource_group.id`/`.name`, `hostpool
 ## Validation and workflows
 
 Pull requests run `terraform fmt -check -diff`, `terraform init -backend=false -input=false`, and `terraform validate -no-color` in GitHub Actions without Azure credentials or a deployment. Do not run plan or apply as part of module validation.
+
+The workflow also checks the FSLogix shared-module input contract for the five reported storage-policy denials (copy scope, disabled local-user prerequisites, bypass, default deny, and no IP allow rules), private subnet/DNS forwarding, state moves, Premium FileStorage, AADKERB, and the hardened default SMB preset (`maximum_security`). These are configuration regressions, not live Azure Policy evaluation or proof of service acceptance. Initialization also requires authorized access to the shared storage module's internal `cp-shared` dependency, even for private-only accounts; the workflow loads the organization `ACCESS_SHARED_CONFIGURATION` SSH key for this (unavailable to fork pull requests). Publish an immutable host-pool module release before updating a consumer pin; an older pinned revision does not acquire these settings.
 
 The release workflow uses the verified current major aliases: `generate-release-metadata/v1`, `create-release/v1`, and `update-wiki/v1`. These already use current action majors including checkout v7; action implementations belong to `miljodir/workflow-templates`, not this module. The validation workflow uses checkout v7 and setup-terraform v4. All GitHub Actions references use major aliases.
