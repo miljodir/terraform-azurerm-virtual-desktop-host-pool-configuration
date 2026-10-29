@@ -44,7 +44,7 @@ Publish immutable, secret-free script content over HTTPS. The URL and script mus
 ```hcl
 # Add to the existing host-pool module block, not a second pool:
 fslogix = {
-  storage_account_name       = "pgisdskprofiles" # Explicit name, no generated suffix.
+  storage_account_name       = "exampleprofiles" # Explicit name, no generated suffix.
   create_resource_group      = false
   resource_group_name        = azurerm_resource_group.desktop_data.name
   location                   = azurerm_resource_group.desktop_data.location
@@ -88,7 +88,7 @@ The account is private-only Premium FileStorage with keys disabled, AADKERB, TLS
 | Kerberos ticket encryption | AES-256 | RC4-HMAC, AES-256 |
 | Channel encryption | AES-256-GCM | AES-128-CCM, AES-128-GCM, AES-256-GCM |
 
-The default is unchanged from earlier releases. **Known issue:** on the GIS desktop (`pgisdskprofiles`, Entra Kerberos/AADKERB, hybrid identities), `maximum_security` caused FSLogix sign-in to fail with "Access is denied" (0x5) despite a valid `cifs/` Kerberos ticket. Switching the account to portal **Maximum compatibility** fixed sign-in. Permissions were ruled out: sign-in kept working after the default share-level permission was removed and access was restricted to the desktop user group via share-scoped RBAC (no "all authenticated users" grant), so the cause is the SMB security settings themselves. Which single setting is responsible (likely the AES-256-only channel or Kerberos ticket encryption) is not yet isolated. All SMB traffic uses TCP 445, so firewall/port rules do not explain the difference.
+The default is unchanged from earlier releases. **Known issue:** in some Entra Kerberos/AADKERB environments with hybrid identities, `maximum_security` caused FSLogix sign-in to fail with "Access is denied" (0x5) despite a valid `cifs/` Kerberos ticket. Switching the account to portal **Maximum compatibility** fixed sign-in. Permissions were ruled out: sign-in kept working after the default share-level permission was removed and access was restricted to the desktop user group via share-scoped RBAC (no "all authenticated users" grant), so the cause is the SMB security settings themselves. Which single setting is responsible (likely the AES-256-only channel or Kerberos ticket encryption) is not yet isolated. All SMB traffic uses TCP 445, so firewall/port rules do not explain the difference.
 
 Set `smb_security_profile = "maximum_compatibility"` for Entra Kerberos FSLogix until the culprit is isolated, otherwise the next apply reverts a portal fix. To isolate it, use `smb_settings` to re-harden one list at a time and test sign-in, checking `Get-SmbConnection` (dialect/encryption), `Get-SmbClientConfiguration` (`EncryptionCiphers`), and `klist` (`cifs/` ticket encryption type) on a session host. Keep `maximum_security` only where sign-in is proven to work.
 
@@ -116,7 +116,7 @@ State-migration blocks move the former `azurerm_storage_account.fslogix["profile
 - `content_sha256`: SHA-256 of the final UTF-8 content; use this for artifact integrity.
 - `file_name`: `Set-FSLogixHost-<version>.ps1`, suitable for immutable publication.
 
-**Packaging before infrastructure apply, without Terraform init:** acquire this repository at the immutable implementation commit pinned by the consumer, read `scripts/Set-FSLogixHost.ps1`, and verify its raw SHA-256 against the reviewed template hash. Use LF checkout bytes (disable Git autocrlf) for stable hashes. Replace `__PROFILE_PATH__` with the validated profile UNC and `__HOST_PREFIX_BASE64__` with UTF-8 base64 of the effective host prefix (for example `pgisdsk`). Hash the resulting UTF-8 script with LF line endings and no BOM to get the content version, then replace `__CONTENT_VERSION__` with that hash. Fail if any template markers remain. Publish/package only the rendered artifact. Pinning the repository commit and template hash needs no Terraform outputs; no local duplicate is needed. The version marker and controlled-restart markers retain the workload contract.
+**Packaging before infrastructure apply, without Terraform init:** acquire this repository at the immutable implementation commit pinned by the consumer, read `scripts/Set-FSLogixHost.ps1`, and verify its raw SHA-256 against the reviewed template hash. Use LF checkout bytes (disable Git autocrlf) for stable hashes. Replace `__PROFILE_PATH__` with the validated profile UNC and `__HOST_PREFIX_BASE64__` with UTF-8 base64 of the effective host prefix (for example `exampledsk`). Hash the resulting UTF-8 script with LF line endings and no BOM to get the content version, then replace `__CONTENT_VERSION__` with that hash. Fail if any template markers remain. Publish/package only the rendered artifact. Pinning the repository commit and template hash needs no Terraform outputs; no local duplicate is needed. The version marker and controlled-restart markers retain the workload contract.
 
 Alternatively expose these outputs from the caller root to its packaging/publishing process. Write `content` as UTF-8 without changing bytes/newlines; do not copy/fork the canonical template or reconstruct its settings in the workload. For example, root outputs:
 
@@ -153,7 +153,7 @@ module "avd_desktop" {
   source = "miljodir/virtual-desktop-host-pool-configuration/azurerm"
 
   name              = "dsk"
-  subscription_name = "p-gis"
+  subscription_name = "p-example"
   subnet_id         = var.avd_subnet_id
 
   key_vault_id          = var.avd_key_vault_id
@@ -184,7 +184,7 @@ module "avd_desktop" {
 }
 ```
 
-The caller supplies a supported, region-available image SKU and exact version rather than `avd-latest`/`latest`. This example creates resource group and pool `p-gis-dsk` with VM prefix `pgisdsk`; it must remain separate from any legacy pool. The legacy service-principal network assignment is disabled here; managed identity network and compute assignments remain enabled. `desktop_groups` expects existing Entra display names; the existing lookup ignores missing names, so callers should verify the exact group exists before provisioning.
+The caller supplies a supported, region-available image SKU and exact version rather than `avd-latest`/`latest`. This example creates resource group and pool `p-example-dsk` with VM prefix `exampledsk`; it must remain separate from any legacy pool. The legacy service-principal network assignment is disabled here; managed identity network and compute assignments remain enabled. `desktop_groups` expects existing Entra display names; the existing lookup ignores missing names, so callers should verify the exact group exists before provisioning.
 
 After guest, Intune, profile-persistence, and application checks succeed, an operator can allow new sessions. Drain-on-provision is not a continuous guest-readiness check. Retaining originals does not prevent other resources from being destroyed or protect legacy machines in a different Terraform configuration. Never move existing legacy VMs into this pilot or delete their resources as part of adopting it.
 
