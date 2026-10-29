@@ -70,3 +70,4 @@ variable "fslogix" {
     error_message = "Provide nonempty user and approved administrator maps containing Entra group object UUIDs, not display names."
   }
 }
+
