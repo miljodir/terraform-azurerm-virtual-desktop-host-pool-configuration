@@ -1,0 +1,29 @@
+name: Terraform and OpenTofu tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fixture-guard:
+    name: Test dependency fixture guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Test preparation script in synthetic copies
+        run: bash scripts/test-prepare-test-module.sh
+
+  test:
+    uses: miljodir/workflow-templates/.github/workflows/terraform-test.yaml@terraform-test/v0
+    with:
+      engine: both
+      terraform-version: "1.x"
+      opentofu-version: "1.x"
+      prepare-script: scripts/prepare-test-module.sh
