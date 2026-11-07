@@ -30,6 +30,12 @@ mock_provider "azurerm" {
     }
   }
 
+  mock_resource "azurerm_storage_share" {
+    defaults = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/t-test-dsk-data/providers/Microsoft.Storage/storageAccounts/ttestdskprofiles/fileServices/default/shares/profiles"
+    }
+  }
+
   mock_resource "azurerm_virtual_desktop_workspace" {
     defaults = {
       id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/t-test-dsk/providers/Microsoft.DesktopVirtualization/workspaces/t-test-dsk"
@@ -87,7 +93,6 @@ override_resource {
   target = azapi_resource.avd_host_pool
   values = {
     id       = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/t-test-dsk/providers/Microsoft.DesktopVirtualization/hostPools/t-test-dsk"
-    location = "westeurope"
     identity = { principal_id = "00000000-0000-0000-0000-000000000010" }
   }
 }
@@ -309,7 +314,7 @@ run "fslogix_defaults" {
   }
 
   override_module {
-    target = module.fslogix["profiles"]
+    target = module.fslogix
     outputs = {
       storage_account = {
         id                  = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/t-test-dsk-data/providers/Microsoft.Storage/storageAccounts/ttestdskprofiles"
@@ -371,7 +376,7 @@ run "fslogix_must_not_use_host_resource_group" {
   }
 
   override_module {
-    target = module.fslogix["profiles"]
+    target = module.fslogix
     outputs = {
       storage_account = {
         id                  = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/t-test-dsk/providers/Microsoft.Storage/storageAccounts/ttestdskprofiles"

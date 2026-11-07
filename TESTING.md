@@ -1,8 +1,10 @@
 # Testing
 
 This module is tested with the native [`terraform test`](https://developer.hashicorp.com/terraform/language/tests)
-framework. Tests run automatically in GitHub Actions on every pull request to
-`main` (see `.github/workflows/terraform-test.yaml`).
+framework. The test suite also works with OpenTofu's `tofu test` command.
+GitHub Actions runs both Terraform and OpenTofu on every pull request targeting
+`main` using a pinned shared workflow (see
+`.github/workflows/terraform-test.yaml`).
 
 ## What runs in CI
 
@@ -44,6 +46,24 @@ These are unit-style tests: they verify how the module turns inputs into
 resource configuration. They do not prove that Azure accepts the configuration;
 that still happens when a consuming workload runs `terraform plan`/`apply`.
 
+## Testing without the registry module
+
+The FSLogix test runs override outputs from the `miljodir/storage-account/azurerm`
+child module, but `init` still downloads every declared module. To run these
+tests without registry or GitHub SSH access, the shared workflow uses the
+test-only stub in `tests/fixtures/fslogix-module`. It runs
+`bash scripts/prepare-test-module.sh` before `init` in a disposable copy; the
+script changes only that copy's `fslogix.tf` to point at the stub. Do not run it
+in a working tree whose production files you need to preserve.
+
+The stub declares the child module's inputs and empty outputs only; it does not
+reproduce or validate the real child module's behavior or output contract.
+Earlier trusted CI resolved the public registry dependency to 1.13.0 under the
+existing `~> 1.12` constraint. Passing tests with this stub therefore verifies
+the host-pool tests independently of that dependency, **not** compatibility
+with or correctness of the real dependency. Tests that rely on the child's
+outputs must continue to override them explicitly.
+
 ## Writing a test
 
 ```hcl
@@ -83,16 +103,24 @@ Guidelines:
 
 ## Running locally
 
-Requires Terraform >= 1.7.
+Requires Terraform >= 1.7, or an OpenTofu release that supports `tofu test`.
+OpenTofu 1.13.9 was used to verify this test suite.
 
 ```sh
+# Terraform
 terraform init -backend=false
+terraform validate
 terraform test            # all tests
 terraform test -verbose   # include plan output
 terraform test -filter=tests/defaults.tftest.hcl
+
+# Or OpenTofu
+tofu init -backend=false
+tofu validate
+tofu test
 ```
 
 Remove the copied `*_override.tf` files afterwards (they are git-ignored).
 
-If the module references internal modules over SSH, you need SSH access to
-GitHub for `terraform init` to download them.
+If the module references internal modules over SSH, the selected CLI needs SSH
+access to GitHub during `init` to download them.
