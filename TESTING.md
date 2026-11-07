@@ -8,12 +8,12 @@ GitHub Actions runs both Terraform and OpenTofu on every pull request targeting
 
 ## What runs in CI
 
-| Job      | Command                              | Purpose                                         |
-| -------- | ------------------------------------ | ----------------------------------------------- |
-| Format   | `terraform fmt -check -recursive`    | Consistent formatting                           |
-| Validate | `terraform init` + `terraform validate` | Syntax, types and references are valid      |
-| Test     | `terraform test`                     | Module behaviour (defaults, wiring, validation) |
-| Fixture guard | `bash scripts/test-prepare-test-module.sh` | Verify dependency substitution rejects unexpected source changes |
+| Job           | Command                                        | Purpose                                      |
+| ------------- | ---------------------------------------------- | -------------------------------------------- |
+| Format        | `terraform fmt -check -recursive`              | Consistent formatting                       |
+| Validate      | `terraform init` + `terraform validate`        | Syntax, types and references are valid       |
+| Test          | `terraform test`                               | Module behaviour (defaults, wiring, validation) |
+| Fixture guard | `bash scripts/test-prepare-test-module.sh`     | Reject unexpected dependency source changes |
 
 ## How the tests work
 
@@ -104,12 +104,14 @@ Guidelines:
 
 ## Running locally
 
-Requires Terraform >= 1.7, or OpenTofu 1.13.9 (the version used to verify this
-suite). The example below uses POSIX shell commands and a committed revision:
-it creates a fresh disposable copy for each CLI, so initialization and the
-test-only module substitution cannot alter the production checkout.
+Requires Bash, Git, GNU `sed`, `grep`, `tar`, and `tee`, Terraform >= 1.7, and
+OpenTofu 1.13.9 (the version used to verify this suite). The example uses Bash
+features and a committed revision; it creates a fresh disposable copy for each
+CLI, so initialization and the test-only module substitution cannot alter the
+production checkout. On Windows, run it in Git Bash from Git for Windows, not
+PowerShell or Command Prompt.
 
-```sh
+```bash
 (
   set -euo pipefail
   tmp_root="$(mktemp -d)"
@@ -128,18 +130,18 @@ test-only module substitution cannot alter the production checkout.
   bash scripts/prepare-test-module.sh
   terraform init -backend=false
   terraform validate
-  terraform test | tee terraform-test.log
+  terraform test -no-color 2>&1 | tee terraform-test.log
   grep -Eq '^Success! [1-9][0-9]* passed' terraform-test.log
-  terraform test "-filter=$filter" | tee terraform-filter.log
+  terraform test -no-color "-filter=$filter" 2>&1 | tee terraform-filter.log
   grep -Eq '^Success! [1-9][0-9]* passed' terraform-filter.log
 
   cd "$tmp_root/opentofu"
   bash scripts/prepare-test-module.sh
   tofu init -backend=false
   tofu validate
-  tofu test | tee tofu-test.log
+  tofu test -no-color 2>&1 | tee tofu-test.log
   grep -Eq '^Success! [1-9][0-9]* passed' tofu-test.log
-  tofu test "-filter=$filter" | tee tofu-filter.log
+  tofu test -no-color "-filter=$filter" 2>&1 | tee tofu-filter.log
   grep -Eq '^Success! [1-9][0-9]* passed' tofu-filter.log
 )
 ```
