@@ -13,6 +13,7 @@ GitHub Actions runs both Terraform and OpenTofu on every pull request targeting
 | Format   | `terraform fmt -check -recursive`    | Consistent formatting                           |
 | Validate | `terraform init` + `terraform validate` | Syntax, types and references are valid      |
 | Test     | `terraform test`                     | Module behaviour (defaults, wiring, validation) |
+| Fixture guard | `bash scripts/test-prepare-test-module.sh` | Verify dependency substitution rejects unexpected source changes |
 
 ## How the tests work
 
@@ -109,34 +110,45 @@ it creates a fresh disposable copy for each CLI, so initialization and the
 test-only module substitution cannot alter the production checkout.
 
 ```sh
-tmp_root="$(mktemp -d)"
-trap 'rm -rf "$tmp_root"' EXIT
-
-mkdir "$tmp_root/terraform" "$tmp_root/opentofu"
-git archive HEAD | tar -x -C "$tmp_root/terraform"
-git archive HEAD | tar -x -C "$tmp_root/opentofu"
-
 (
+  set -euo pipefail
+  tmp_root="$(mktemp -d)"
+  trap 'rm -rf "$tmp_root"' EXIT
+
+  mkdir "$tmp_root/terraform" "$tmp_root/opentofu"
+  git archive HEAD | tar -x -C "$tmp_root/terraform"
+  git archive HEAD | tar -x -C "$tmp_root/opentofu"
+
+  filter='tests/host_pool.tftest.hcl'
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) filter='tests\host_pool.tftest.hcl' ;;
+  esac
+
   cd "$tmp_root/terraform"
   bash scripts/prepare-test-module.sh
   terraform init -backend=false
   terraform validate
-  terraform test
-  terraform test -filter=tests/host_pool.tftest.hcl
-)
+  terraform test | tee terraform-test.log
+  grep -Eq '^Success! [1-9][0-9]* passed' terraform-test.log
+  terraform test "-filter=$filter" | tee terraform-filter.log
+  grep -Eq '^Success! [1-9][0-9]* passed' terraform-filter.log
 
-(
   cd "$tmp_root/opentofu"
   bash scripts/prepare-test-module.sh
   tofu init -backend=false
   tofu validate
-  tofu test
+  tofu test | tee tofu-test.log
+  grep -Eq '^Success! [1-9][0-9]* passed' tofu-test.log
+  tofu test "-filter=$filter" | tee tofu-filter.log
+  grep -Eq '^Success! [1-9][0-9]* passed' tofu-filter.log
 )
 ```
 
-Terraform can select the test file with
-`terraform test -filter=tests/host_pool.tftest.hcl`. OpenTofu 1.13.9 does not
-support Terraform's `-filter` option, so run the full suite with `tofu test`.
+Terraform and OpenTofu support `-filter`. Use forward slashes on Unix-like
+systems and backslashes on Windows; the example chooses the separator based on
+the shell platform. It checks each full and filtered test command reports at
+least one passing run, so an empty selection does not silently count as
+success.
 
 `git archive HEAD` includes committed files only. Commit the changes you want to
 test before running this example. Do not run `scripts/prepare-test-module.sh`

@@ -11,6 +11,16 @@ permissions:
   contents: read
 
 jobs:
+  fixture-guard:
+    name: Test dependency fixture guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Test preparation script in synthetic copies
+        run: bash scripts/test-prepare-test-module.sh
+
   test:
     uses: miljodir/workflow-templates/.github/workflows/terraform-test.yaml@70a3d807d7a6d1969f8216c8c9e3a5108e892ddb
     with:
