@@ -11,9 +11,20 @@ if [[ ! -f "$module_file" || ! -f tests/fixtures/fslogix-module/main.tf ]]; then
   exit 1
 fi
 
+if ! awk '
+  /^module "fslogix" \{$/ { module_count++; in_module = 1; next }
+  in_module && /^}/ { in_module = 0; next }
+  in_module && /^  source  = "miljodir\/storage-account\/azurerm"$/ { source_count++ }
+  in_module && /^  version = "~> 1\.12"$/ { version_count++ }
+  END { exit !(module_count == 1 && source_count == 1 && version_count == 1) }
+' "$module_file"; then
+  echo "Expected one fslogix module with the pinned storage-account source and version in $module_file." >&2
+  exit 1
+fi
+
 if [[ "$(grep -Fxc "$registry_source" "$module_file" || true)" != 1 ||
       "$(grep -Fxc "$version_line" "$module_file" || true)" != 1 ]]; then
-  echo "Expected exactly one storage-account registry source and version in $module_file." >&2
+  echo "Expected the storage-account source and version to occur only in the fslogix module." >&2
   exit 1
 fi
 
@@ -22,7 +33,14 @@ sed -i \
   -e '/^  version = "~> 1\.12"$/d' \
   "$module_file"
 
-if [[ "$(grep -Fxc "$local_source" "$module_file" || true)" != 1 ||
+if ! awk '
+  /^module "fslogix" \{$/ { module_count++; in_module = 1; next }
+  in_module && /^}/ { in_module = 0; next }
+  in_module && /^  source  = "\.\/tests\/fixtures\/fslogix-module"$/ { source_count++ }
+  in_module && /^  version = "~> 1\.12"$/ { version_count++ }
+  END { exit !(module_count == 1 && source_count == 1 && version_count == 0) }
+' "$module_file" ||
+   [[ "$(grep -Fxc "$local_source" "$module_file" || true)" != 1 ||
       "$(grep -Fxc "$version_line" "$module_file" || true)" != 0 ]]; then
   echo "Could not verify local test-module substitution in $module_file." >&2
   exit 1
