@@ -25,5 +25,5 @@ jobs:
     with:
       engine: both
       terraform-version: "1.x"
-      opentofu-version: "1.13.9"
+      opentofu-version: "1.x"
       prepare-script: scripts/prepare-test-module.sh

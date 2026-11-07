@@ -5,6 +5,8 @@ framework. The test suite also works with OpenTofu's `tofu test` command.
 GitHub Actions runs both Terraform and OpenTofu on every pull request, regardless
 of its target branch, on pushes to `main`, and on manual dispatch using a pinned shared workflow (see
 `.github/workflows/terraform-test.yaml`).
+Both engine version inputs use `1.x`, selecting the latest stable 1.x release
+available when CI runs rather than a fixed patch version.
 
 ## What runs in CI
 
@@ -105,7 +107,8 @@ Guidelines:
 ## Running locally
 
 Requires Bash, Git, GNU `sed`, `grep`, `tar`, and `tee`, Terraform >= 1.7, and
-OpenTofu 1.13.9 (the version used to verify this suite). The example uses Bash
+OpenTofu (1.13.9 is a verified release for this suite; CI selects the latest
+stable 1.x). The example uses Bash
 features and a committed revision; it creates a fresh disposable copy for each
 CLI, so initialization and the test-only module substitution cannot alter the
 production checkout. On Windows, run it in Git Bash from Git for Windows, not
