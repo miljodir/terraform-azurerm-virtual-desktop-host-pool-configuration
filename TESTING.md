@@ -103,24 +103,45 @@ Guidelines:
 
 ## Running locally
 
-Requires Terraform >= 1.7, or an OpenTofu release that supports `tofu test`.
-OpenTofu 1.13.9 was used to verify this test suite.
+Requires Terraform >= 1.7, or OpenTofu 1.13.9 (the version used to verify this
+suite). The example below uses POSIX shell commands and a committed revision:
+it creates a fresh disposable copy for each CLI, so initialization and the
+test-only module substitution cannot alter the production checkout.
 
 ```sh
-# Terraform
-terraform init -backend=false
-terraform validate
-terraform test            # all tests
-terraform test -verbose   # include plan output
-terraform test -filter=tests/defaults.tftest.hcl
+tmp_root="$(mktemp -d)"
+trap 'rm -rf "$tmp_root"' EXIT
 
-# Or OpenTofu
-tofu init -backend=false
-tofu validate
-tofu test
+mkdir "$tmp_root/terraform" "$tmp_root/opentofu"
+git archive HEAD | tar -x -C "$tmp_root/terraform"
+git archive HEAD | tar -x -C "$tmp_root/opentofu"
+
+(
+  cd "$tmp_root/terraform"
+  bash scripts/prepare-test-module.sh
+  terraform init -backend=false
+  terraform validate
+  terraform test
+  terraform test -filter=tests/host_pool.tftest.hcl
+)
+
+(
+  cd "$tmp_root/opentofu"
+  bash scripts/prepare-test-module.sh
+  tofu init -backend=false
+  tofu validate
+  tofu test
+  tofu test -filter=tests/host_pool.tftest.hcl
+)
 ```
 
-Remove the copied `*_override.tf` files afterwards (they are git-ignored).
+`git archive HEAD` includes committed files only. Commit the changes you want to
+test before running this example. Do not run `scripts/prepare-test-module.sh`
+in the production checkout: it changes `fslogix.tf` there to use a test-only
+stub instead of the real module dependency. The temporary copies are removed
+when the shell exits; this test suite has no copied output-override files to
+clean up.
 
-If the module references internal modules over SSH, the selected CLI needs SSH
-access to GitHub during `init` to download them.
+These commands need no Azure credentials. The stub avoids downloading the
+private-transitive registry module in this fixture-backed test run, but does
+not validate that real dependency's behavior or output contract.
