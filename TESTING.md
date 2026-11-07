@@ -2,8 +2,8 @@
 
 This module is tested with the native [`terraform test`](https://developer.hashicorp.com/terraform/language/tests)
 framework. The test suite also works with OpenTofu's `tofu test` command.
-GitHub Actions runs both Terraform and OpenTofu on every pull request targeting
-`main` using a pinned shared workflow (see
+GitHub Actions runs both Terraform and OpenTofu on every pull request, regardless
+of its target branch, on pushes to `main`, and on manual dispatch using a pinned shared workflow (see
 `.github/workflows/terraform-test.yaml`).
 
 ## What runs in CI
