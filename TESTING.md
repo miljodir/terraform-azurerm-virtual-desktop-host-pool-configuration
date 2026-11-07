@@ -131,9 +131,12 @@ git archive HEAD | tar -x -C "$tmp_root/opentofu"
   tofu init -backend=false
   tofu validate
   tofu test
-  tofu test -filter=tests/host_pool.tftest.hcl
 )
 ```
+
+Terraform can select the test file with
+`terraform test -filter=tests/host_pool.tftest.hcl`. OpenTofu 1.13.9 does not
+support Terraform's `-filter` option, so run the full suite with `tofu test`.
 
 `git archive HEAD` includes committed files only. Commit the changes you want to
 test before running this example. Do not run `scripts/prepare-test-module.sh`
