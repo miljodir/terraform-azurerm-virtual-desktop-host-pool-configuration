@@ -197,3 +197,19 @@ Pull requests run `terraform fmt -check -diff`, `terraform init -backend=false -
 The workflow also checks the FSLogix shared-module input contract for the five reported storage-policy denials (copy scope, disabled local-user prerequisites, bypass, default deny, and no IP allow rules), private subnet/DNS forwarding, state moves, Premium FileStorage, AADKERB, and the hardened default SMB preset (`maximum_security`). These are configuration regressions, not live Azure Policy evaluation or proof of service acceptance. Initialization also requires authorized access to the shared storage module's internal `cp-shared` dependency, even for private-only accounts; the workflow loads the organization `ACCESS_SHARED_CONFIGURATION` SSH key for this (unavailable to fork pull requests). Publish an immutable host-pool module release before updating a consumer pin; an older pinned revision does not acquire these settings.
 
 The release workflow uses the verified current major aliases: `generate-release-metadata/v1`, `create-release/v1`, and `update-wiki/v1`. These already use current action majors including checkout v7; action implementations belong to `miljodir/workflow-templates`, not this module. The validation workflow uses checkout v7 and setup-terraform v4. All GitHub Actions references use major aliases.
+
+Release previews run on `pull_request` opened, synchronized, reopened, labeled,
+and unlabeled events for Terraform changes targeting `main`. The same trigger
+handles closed events, but only merged pull requests invoke release metadata;
+closing without merging does not dispatch a release. The shared workflow renders
+wiki documentation from the merge commit and dispatches `create_release` and
+`update_wiki` only after a successful release plan. The existing dispatch jobs
+remain responsible for tags and wiki updates. Workflow-only changes do not match
+the Terraform path filter, and the `no-release` label suppresses release planning.
+
+These jobs use only `GITHUB_TOKEN`, with write permissions scoped to the jobs
+that need them. Public-fork pull requests receive a read-only token by default:
+release-plan comments can fail, and automatic release/wiki dispatch after a fork
+merge is not guaranteed. Requesting write permissions does not override GitHub's
+fork restrictions. No privileged fallback is provided; maintainers must verify
+release completion for fork contributions.
