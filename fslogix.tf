@@ -60,8 +60,7 @@ resource "azurerm_resource_group" "fslogix" {
 module "fslogix" {
   for_each = local.fslogix
 
-  source  = "miljodir/storage-account/azurerm"
-  version = "~> 1.12"
+  source = "git::https://github.com/miljodir/terraform-azurerm-storage-account.git?ref=5ed25d43357e1130b2a94ebc9c796f74bbf8e049"
 
   storage_account_name = each.value.storage_account_name
   location             = coalesce(each.value.location, var.location)
@@ -75,6 +74,7 @@ module "fslogix" {
   shared_access_key_enabled     = false
   public_network_access_enabled = false
   allow_known_public_ips        = false
+  smb_oauth_enabled             = each.value.smb_oauth_enabled
 
   subnet_id            = each.value.private_endpoint_subnet_id
   private_endpoints    = ["file"]
