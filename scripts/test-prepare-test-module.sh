@@ -17,17 +17,16 @@ make_case() {
 module "fslogix" {
   for_each = local.fslogix
 
-  source  = "miljodir/storage-account/azurerm"
-  version = "~> 1.12"
+  source = "git::https://github.com/miljodir/terraform-azurerm-storage-account.git?ref=5ed25d43357e1130b2a94ebc9c796f74bbf8e049"
 }
 EOF
 
   case "$mutation" in
     source)
-      sed -i 's|miljodir/storage-account/azurerm|miljodir/storage-account/other|' "$case_dir/fslogix.tf"
+      sed -i 's|terraform-azurerm-storage-account|terraform-azurerm-other|' "$case_dir/fslogix.tf"
       ;;
     version)
-      sed -i 's|~> 1.12|~> 1.11|' "$case_dir/fslogix.tf"
+      sed -i 's|5ed25d43357e1130b2a94ebc9c796f74bbf8e049|different-ref|' "$case_dir/fslogix.tf"
       ;;
     target)
       sed -i 's/module "fslogix"/module "other"/' "$case_dir/fslogix.tf"
@@ -46,12 +45,12 @@ make_case valid
   cd "$tmp_root/valid"
   bash scripts/prepare-test-module.sh
 )
-grep -Fqx '  source  = "./tests/fixtures/fslogix-module"' "$tmp_root/valid/fslogix.tf"
-if grep -Fqx '  version = "~> 1.12"' "$tmp_root/valid/fslogix.tf"; then
-  echo "The valid case retained the registry version constraint." >&2
+grep -Fqx '  source = "./tests/fixtures/fslogix-module"' "$tmp_root/valid/fslogix.tf"
+if grep -Fq 'git::https://github.com/miljodir/terraform-azurerm-storage-account.git' "$tmp_root/valid/fslogix.tf"; then
+  echo "The valid case retained the Git source." >&2
   exit 1
 fi
-echo "PASS: expected source and version are replaced in a disposable copy."
+echo "PASS: expected source is replaced in a disposable copy."
 
 for mutation in source version target; do
   make_case "$mutation" "$mutation"

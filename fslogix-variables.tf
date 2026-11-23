@@ -12,6 +12,7 @@ variable "fslogix" {
     replication_type           = optional(string, "ZRS")
     share_name                 = optional(string, "profiles")
     quota_gib                  = optional(number, 100)
+    smb_oauth_enabled          = optional(bool)
     smb_security_profile       = optional(string, "maximum_security")
     smb_settings = optional(object({
       versions                        = list(string)
@@ -21,6 +22,11 @@ variable "fslogix" {
     }))
   })
   default = null
+
+  validation {
+    condition     = var.fslogix == null ? true : var.fslogix.smb_oauth_enabled != null
+    error_message = "Set fslogix.smb_oauth_enabled explicitly to the existing account's SMB OAuth value to avoid changing it."
+  }
 
   validation {
     condition     = var.fslogix == null ? true : contains(["maximum_security", "maximum_compatibility"], var.fslogix.smb_security_profile)

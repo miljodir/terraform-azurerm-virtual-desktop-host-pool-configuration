@@ -50,7 +50,13 @@ mock_provider "azurerm" {
 }
 
 mock_provider "azapi" {}
-mock_provider "azuread" {}
+mock_provider "azuread" {
+  mock_resource "azuread_group" {
+    defaults = {
+      object_id = "00000000-0000-0000-0000-000000000003"
+    }
+  }
+}
 mock_provider "random" {}
 
 variables {
@@ -310,6 +316,7 @@ run "fslogix_defaults" {
       private_endpoint_subnet_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-network/providers/Microsoft.Network/virtualNetworks/vnet-test/subnets/snet-pe"
       user_group_ids             = { users = "00000000-0000-0000-0000-000000000001" }
       administrator_group_ids    = { admins = "00000000-0000-0000-0000-000000000002" }
+      smb_oauth_enabled          = false
     }
   }
 
@@ -372,6 +379,7 @@ run "fslogix_must_not_use_host_resource_group" {
       administrator_group_ids    = { admins = "00000000-0000-0000-0000-000000000002" }
       create_resource_group      = false
       resource_group_name        = "t-test-dsk"
+      smb_oauth_enabled          = false
     }
   }
 
@@ -404,10 +412,64 @@ run "fslogix_rejects_group_names" {
       private_endpoint_subnet_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-network/providers/Microsoft.Network/virtualNetworks/vnet-test/subnets/snet-pe"
       user_group_ids             = { users = "Example Users" }
       administrator_group_ids    = { admins = "00000000-0000-0000-0000-000000000002" }
+      smb_oauth_enabled          = false
     }
   }
 
   expect_failures = [var.fslogix]
+}
+
+run "fslogix_smb_oauth_must_be_explicit" {
+  command = plan
+
+  variables {
+    fslogix = {
+      storage_account_name       = "ttestdskprofiles"
+      private_endpoint_subnet_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-network/providers/Microsoft.Network/virtualNetworks/vnet-test/subnets/snet-pe"
+      user_group_ids             = { users = "00000000-0000-0000-0000-000000000001" }
+      administrator_group_ids    = { admins = "00000000-0000-0000-0000-000000000002" }
+    }
+  }
+
+  expect_failures = [var.fslogix]
+}
+
+run "fslogix_smb_oauth_enabled" {
+  command = plan
+
+  variables {
+    fslogix = {
+      storage_account_name       = "ttestdskprofiles"
+      private_endpoint_subnet_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-network/providers/Microsoft.Network/virtualNetworks/vnet-test/subnets/snet-pe"
+      user_group_ids             = { users = "00000000-0000-0000-0000-000000000001" }
+      administrator_group_ids    = { admins = "00000000-0000-0000-0000-000000000002" }
+      smb_oauth_enabled          = true
+    }
+  }
+
+  assert {
+    condition     = module.fslogix["profiles"].smb_oauth_enabled == true
+    error_message = "The FSLogix storage module must receive the enabled SMB OAuth setting."
+  }
+}
+
+run "fslogix_smb_oauth_disabled" {
+  command = plan
+
+  variables {
+    fslogix = {
+      storage_account_name       = "ttestdskprofiles"
+      private_endpoint_subnet_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-network/providers/Microsoft.Network/virtualNetworks/vnet-test/subnets/snet-pe"
+      user_group_ids             = { users = "00000000-0000-0000-0000-000000000001" }
+      administrator_group_ids    = { admins = "00000000-0000-0000-0000-000000000002" }
+      smb_oauth_enabled          = false
+    }
+  }
+
+  assert {
+    condition     = module.fslogix["profiles"].smb_oauth_enabled == false
+    error_message = "The FSLogix storage module must receive the disabled SMB OAuth setting."
+  }
 }
 
 run "invalid_name_length" {

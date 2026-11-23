@@ -51,21 +51,21 @@ that still happens when a consuming workload runs `terraform plan`/`apply`.
 
 ## Testing without the registry module
 
-The FSLogix test runs override outputs from the `miljodir/storage-account/azurerm`
-child module, but `init` still downloads every declared module. To run these
+The FSLogix tests use a Git-pinned storage-account child module, but `init`
+still downloads every declared module. To run these
 tests without registry or GitHub SSH access, the shared workflow uses the
 test-only stub in `tests/fixtures/fslogix-module`. It runs
 `bash scripts/prepare-test-module.sh` before `init` in a disposable copy; the
 script changes only that copy's `fslogix.tf` to point at the stub. Do not run it
 in a working tree whose production files you need to preserve.
 
-The stub declares the child module's inputs and empty outputs only; it does not
+The stub declares the child module's inputs and synthetic outputs only; it does not
 reproduce or validate the real child module's behavior or output contract.
-Earlier trusted CI resolved the public registry dependency to 1.13.0 under the
-existing `~> 1.12` constraint. Passing tests with this stub therefore verifies
+Passing tests with this stub therefore verifies
 the host-pool tests independently of that dependency, **not** compatibility
 with or correctness of the real dependency. Tests that rely on the child's
-outputs must continue to override them explicitly.
+outputs can use the stub's synthetic values or override them explicitly. The
+stub exposes `smb_oauth_enabled` as an output solely to test input wiring.
 
 ## Writing a test
 
